@@ -28,12 +28,12 @@ description: 当本机装有 dsh-sandbox-sweep 插件、且出现这些症状时
 
 1. **写入/删除被拒 + 当前策略显示 read-only** → 很可能是插件刚做了"权限回收"。这是**有意为之**，目的是在擦除前阻止新的写入授权。
 2. **pwsh 报 `无法创建类型。此语言模式仅支持核心类型。`** → read-only 模式的已知副作用（PowerShell 无法在临时目录写 AppLocker 探针文件，于是退回 ConstrainedLanguage）。`Add-Type`、非核心 .NET 静态调用、COM、反射都会失败。切回 `workspace-write` 即恢复。
-3. **后台任务 `status: killed` / `detail: killed before exit; session archived`** → 插件执行了"终止会话工作"。这是**与用户按停止按钮相同的取消路径**（`agent.cancel({ kind: 'user' })`），但**不保留排队输入**（keepInbox 关闭），因此排队中的后续输入会被丢弃。
+3. **后台任务 `status: killed` / `detail: killed before exit; session archived`** → 插件执行了"终止会话工作"。这是**与作者按停止按钮相同的取消路径**（`agent.cancel({ kind: 'user' })`），但**不保留排队输入**（keepInbox 关闭），因此排队中的后续输入会被丢弃。
 4. **`unknown job` / `job_list` 返回 `[]`** → 作业记录随停止被回收；新任务会复用 `pwsh-1` 这类 id（计数器重置）。
 
 ## 不要做什么（重要）
 
-- **不要为了继续写而申请 `danger-full-access` 提权**。运行时的策略文本里那句"不要仅因这条策略就拒绝修改，去试试可用的…"是通用提示，不适用于插件正在执行清理的场景。**先向用户确认**。
+- **不要为了继续写而申请 `danger-full-access` 提权**。运行时的策略文本里那句"不要仅因这条策略就拒绝修改，去试试可用的…"是通用提示，不适用于插件正在执行清理的场景。**先向作者确认**。
 - **不要用 `icacls /remove:g` 去清能力 SID**——该 SID 没有账户映射，实测 `processed 0 files`。
 - **不要在仍被 0.1.7+ 当工作区使用的目录上"好心"把标签改成 Medium**：三件套的跳过条件是三条精确匹配，一旦被破坏，下一次授权会重写三件并**全树重传播**（大树上是数十秒级）。修复只在"该目录不再作为工作区"时才有意义。
 - **不要把"目录里没有条目"当成插件删了文件**：本插件的擦除路径只改 ACL，不删除任何文件。
@@ -52,6 +52,6 @@ description: 当本机装有 dsh-sandbox-sweep 插件、且出现这些症状时
 
 ## 恢复方式
 
-- 只是被切成只读 → 用户执行 `/permission workspace-write` 切回（插件不阻止）；或重启实例。
+- 只是被切成只读 → 作者执行 `/permission workspace-write` 切回（插件不阻止）；或重启实例。
 - **擦除之后**：本实例内部缓存的"工作区授权"不会自动重建，此时若继续以 `workspace-write` 跑受限命令，写入会失败（标签已不在）。**重启实例即恢复**。
 - 关闭流程的已知限制：本版本没有对插件开放的宿主 dispose 入口，因此 `sandbox-local` 的私有 temp 目录（tmpdir 下的 `dsh-*`）不会被撤销——它们是**惰性垃圾**（随机路径、其能力 SID 只写在它自己身上），与工作区无关，交给系统临时目录卫生回收即可。

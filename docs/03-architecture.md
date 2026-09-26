@@ -59,7 +59,7 @@ async function eraseRoot(root: string) {
 
 ### 2.2bis 实例 temp 根的分层直接删除（v6；删除而非擦除）
 
-**对象与来源**：`dsh-sandbox-local` 用 `mkdtempSync(join(tmpdir(), "dsh-"))` 按「会话 × 工作区」**惰性创建** temp 根（`dsh-<6位>`）；正常 dispose 时 DSH 自己 `rmSync`，**硬杀 / 崩溃 / dispose 失败**留下的才由插件收。
+**对象与来源**：`dsh-sandbox-local` 用 `mkdtempSync(join(tmpdir(), "dsh-"))` 按「会话 × 工作区」**惰性创建** temp 根（`dsh-<6位>`）。DSH 自己的 provider dispose 里**确实**有 `rmSync`（`revokeAclGrants → removeTempDir`）—— 但那条清理注册在 `ctx.effect` 上，而**实测本插件的关闭路径拿不到 dispose 入口**（实例日志里 `loader/root/fiber/scope.dispose` 全"不可用"），于是它**不会执行**。所以**正常关闭留下的 temp 根同样得由插件收**（这才是主要来源），"硬杀 / 崩溃"只是其中一部分。
 **只认严格命名**：`TEMP_DIR_RE = /^dsh-[A-Za-z0-9]{6}$/`——`dsh-spill-*` / `dsh-subprocess-*` / `dsh-ssh-uploads` 是别的命名空间，一律不碰。父目录候选由 `tempParents()` 给出：`os.tmpdir()`、`%TEMP%`、`%TMP%`、`%LOCALAPPDATA%\Temp`、`%USERPROFILE%\OneDrive`（去重、只留真实存在的；实测 `os.tmpdir()` 会被 OneDrive 重定向）。
 
 | 层 | 判据 | 何时删 |
@@ -79,9 +79,9 @@ async function eraseRoot(root: string) {
 FENCE    置"不再受理新的受限启动"（参照终端后端的模式围栏形状）
 QUIESCE  cancel 各 agent → 关终端 → 取消作业 → 等待子进程（超时则强杀并记录）
 FLUSH    逐会话 ctx.sessions.flush(session)
-ERASE    按用户选择执行（失败按用户选择：中止 / 落台账继续）
+ERASE    按作者选择执行（失败按作者选择：中止 / 落台账继续）
 TEMP     分层直接删除实例 temp 根（closeInstance 的最后一步，排在 DISPOSE 之前；本实例自己的根排最后——关闭链自己还要用 TEMP）
-DISPOSE  走宿主自身的 dispose 链（保证 sandbox-local 的 temp 撤销执行）
+DISPOSE  仍尝试走宿主自身的 dispose 链，但**实测四个目标全"不可用"**（日志原样：`shutdown: loader.dispose: 不可用 | root.dispose: 不可用 | …`）→ `sandbox-local` 注册在 `ctx.effect` 上的清理（撤销 temp 授权、删 temp 根）不会执行，因此上面 TEMP 一步必须在 EXIT 之前由插件自己做干净
 EXIT     最后退出进程
 ```
 - **禁止** 在 DISPOSE 之前 `process.exit()`；

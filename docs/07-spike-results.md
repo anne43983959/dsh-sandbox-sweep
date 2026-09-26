@@ -7,7 +7,7 @@
 > 环境：本会话运行在 **0.1.5-rc.3** 实例（工作区 = 启动器数据目录，只写能力 ACE，不会污染标签）；
 > 目标实例 = **0.1.7-rc.2**（`homes\0.1.7-rc.2`），其版本产物只读参考自 `versions\0.1.7-rc.2`。
 
-## S1 · 按钮座位 —— 已定（结论与用户决策）
+## S1 · 按钮座位 —— 已定（结论与作者决策）
 
 **rc.2 侧栏座位实况**（源码：`dsh-client-ui-sidebar/lib/client.js` 的 `children` 声明）：
 
@@ -21,7 +21,7 @@
 
 **关键判定**：侧栏的「新建会话」按钮是**外壳硬编码**的（`SidebarRoot` 内的 `.newSession` 元素，位于品牌行之下、面板行之上），**其正上方没有任何可注册座位** → "两个按钮紧贴新会话按钮上方"用纯插件**无法实现**。
 
-**用户决策（2026-09-26）**：采用 **A** —— 只做 `sidebar.footer.action`（侧栏脚部动作区，list 型，非侵入、稳定）。规格中其余各项（同款风格、各占半宽、红框红字）全部保留。
+**作者决策（2026-09-26）**：采用 **A** —— 只做 `sidebar.footer.action`（侧栏脚部动作区，list 型，非侵入、稳定）。规格中其余各项（同款风格、各占半宽、红框红字）全部保留。
 
 ## S2 · 客户端插件契约 —— 已定（可直接手写，无需官方构建链）
 
@@ -70,7 +70,7 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 | `package.json` / `lib/index.js`（宿主半空实现）/ `lib/client.js`（手写客户端半） | ✅ 已写入并通过 `node --check` |
 | 安装进 `homes\0.1.7-rc.2\profiles\web` | ✅ 链接 + insert 条目均已就位 |
 | 组合树校验 | ✅ `--dump-config` 出现 `sandbox-sweep` 行，无 patch 警告 |
-| 界面效果 | ⬜ **待用户拉起 rc.2 实例验证**（预期：侧栏脚部一行两枚半宽按钮，红框红字；点击弹出 M0 说明对话框；侧栏收起时不渲染） |
+| 界面效果 | ⬜ **待作者拉起 rc.2 实例验证**（预期：侧栏脚部一行两枚半宽按钮，红框红字；点击弹出 M0 说明对话框；侧栏收起时不渲染） |
 
 ## M0.1 验收反馈与调整（2026-09-26）
 
@@ -120,7 +120,7 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 
 ## M1 运行验证 —— 通过（2026-09-26）
 
-用户拉起 rc.2 实测：自检分区正常展示（版本 0.1.7-rc.2、DSH_HOME、Node 22.23.2、PID、活跃对话 1 条、后台作业无、工作区 `default-workspace` 三项均为"无"、其他活跃实例列出 0.1.5-rc.3）。
+作者拉起 rc.2 实测：自检分区正常展示（版本 0.1.7-rc.2、DSH_HOME、Node 22.23.2、PID、活跃对话 1 条、后台作业无、工作区 `default-workspace` 三项均为"无"、其他活跃实例列出 0.1.5-rc.3）。
 首次失败已定位并修复：**Fetch 路由 `path` 必须带 `/api` 前缀**（详见上文 S3 的 ⚠️ 说明）。同时把客户端的错误通道改为"先读文本再解析"，避免非 JSON 响应被 JSON 解析异常掩盖。
 
 ## M2 · 擦除（已实现，离线全链路验证通过）
@@ -156,7 +156,7 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 
 ## M2 首次点击验证（2026-09-26）与三处修正
 
-用户实测：预演与执行均跑通，工作区三项从"有/有/有"回到"无/无/无"，校验通过、台账落盘。同时暴露三个问题：
+作者实测：预演与执行均跑通，工作区三项从"有/有/有"回到"无/无/无"，校验通过、台账落盘。同时暴露三个问题：
 
 1. **文字乱码**：`icacls` / Windows PowerShell 5.1 的输出走控制台代码页（简体中文 GBK/936），按 UTF-8 解码出现 `�Ѵ������ļ�`。
    修正：子进程统一用 `encoding:'buffer'` 取原始字节 → 先按 UTF-8 试、出现替换字符再按 GBK 解（`TextDecoder('gbk')`）；
@@ -246,19 +246,19 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 
 ## M2.5 · 权限回收（会话切只读）—— 已实现，待运行验证
 
-用户方案里的第 ③ 步终于落地：`POST /api/sandbox-sweep/revoke`。
+作者方案里的第 ③ 步终于落地：`POST /api/sandbox-sweep/revoke`。
 
 - 会话枚举：`ctx.sessions.list()`；当前模式：`ctx.sandboxPolicy.overrideOf(session)`（`undefined` = 未显式覆盖，按部署默认处理）。
 - **终端围栏**：切模式前先用 `ctx.terminals.list(agent)` + `kill(agent, id)` 关掉该会话的常驻终端（否则模式写入会被围栏拒绝）；`agent` 由 `ctx.agents.get(sessionId)` 取得。
 - 切换：`setSandboxMode(session, "read-only")` —— 该函数是 `@deepseek-ai/dsh-sandbox-policy` 的**根导出**（已核对 `lib/index.js` 的 export 列表），经通用化的 `loadDshModule(packageName)` 按包名从安装目录解析载入（同样支持 `.pnpm` 扫描兜底）。
 - 逐会话结果：`changed | already-read-only | failed`（失败带原因），外加服务级 `errors[]`。
 
-**接入位置**：① 清理流程的"确认执行"现在先回收再擦除（回收有失败项 → 停下，界面出现"仍然继续擦除"由用户裁断）；
+**接入位置**：① 清理流程的"确认执行"现在先回收再擦除（回收有失败项 → 停下，界面出现"仍然继续擦除"由作者裁断）；
 ② 关闭流程的 QUIESCE 之后、ERASE 之前也插入了这一步。
 
 ## ⚠️ 回归事故：泛化模块载入器打断了唯一可用的解析路径（已修）
 
-用户实测：**权限回收失败**，界面报
+作者实测：**权限回收失败**，界面报
 `载入 setSandboxMode 失败: 无法载入 @deepseek-ai/dsh-sandbox-policy（…）: Cannot find package …`，
 且随后的擦除也报同类错误 —— 而 M2 阶段擦除明明是好的。
 
@@ -286,7 +286,7 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 
 ## M2.5 运行验证 —— 通过（2026-09-26 20:3x）
 
-用户实测：`权限回收：已切 2 · 本就只读 0 · 失败 0`，随后擦除两步 ok（撤销 4ms / 去拒绝 22ms）、`校验通过`。
+作者实测：`权限回收：已切 2 · 本就只读 0 · 失败 0`，随后擦除两步 ok（撤销 4ms / 去拒绝 22ms）、`校验通过`。
 **最直观的证据**：rc.2 界面输入框下方的权限标签从「工作区内修改」变成了 **「仅可查看」** ——会话真的被切到了 read-only。
 
 （此前那次 `已切 0 · 本就只读 2` 是我的模块载入回归导致 `setSandboxMode` 没载入成功；修复后判定改用 `sandboxPolicy.resolve({session}).mode`，不再误判。）
@@ -323,7 +323,7 @@ await ctx.parallel("workspace/session-stop", { sessionId });
 - 新增 `POST /api/sandbox-sweep/stop-sessions`；逐会话回报 `activity`（如 `turn×1, job×2`）与停止结果。
 - 自检报告里每个会话现在多一列 **"在跑：…"**，让 F 类阻塞可见（不再只报终端数）。
 - 清理流程：检出活跃工作时显示强制终止确认框，**未勾选则"确认执行"不可点**；确认后顺序为 **终止工作 → 权限回收 → 擦除**；
-  任一步出现失败项就**停下**并给出「仍然继续」由用户裁断（对应方案"不满足即终止/用户裁定"）。
+  任一步出现失败项就**停下**并给出「仍然继续」由作者裁断（对应方案"不满足即终止/作者裁定"）。
 - 关闭流程：QUIESCE 第一步就是它（先停工作，再关终端 → 刷盘 → 回收 → 擦除 → 退出）。
 - **不写归档集合**：只停工作，不改会话的归档状态（`archiveSession` 会写归档，我们没有调用它）。
 
@@ -342,7 +342,7 @@ await ctx.parallel("workspace/session-stop", { sessionId });
 
 现在擦除弹窗在"未执行"状态下约 7–9 行，1040×615 窗口内无需滚动；执行后追加结果行（调试信息，按要求不计入必要行数）。
 
-## 受控方视角：rc.2 会话日志（经用户授权读取，2026-09-26）
+## 受控方视角：rc.2 会话日志（经作者授权读取，2026-09-26）
 
 来源：`homes/0.1.7-rc.2/sessions/--C-...default-workspace--/session-*.v4.jsonl.zstd`（多帧 zstd；Node 的
 `zstdDecompressSync` 只解第一帧，需按 magic `28 B5 2F FD` 切帧后逐帧解）。这是**被我们操作的那一方自己的记录**，可与宿主侧证据交叉验证。
@@ -353,9 +353,9 @@ await ctx.parallel("workspace/session-stop", { sessionId });
 |---|---|
 | 19:02:27 | `sandbox/mode -> workspace-write`（主会话建立） |
 | **20:38:15** | 主会话 **与** 第二会话同时 `-> read-only` ← 我们的权限回收（**两个会话都覆盖到了**） |
-| 20:41:40 | 用户 `/permission workspace-write` 切回 |
+| 20:41:40 | 作者 `/permission workspace-write` 切回 |
 | **20:43:11** | `-> read-only`（第二轮回收） |
-| 20:49:26 | 用户 `/permission workspace-write` 切回 |
+| 20:49:26 | 作者 `/permission workspace-write` 切回 |
 | **20:50:35** | `-> read-only`（第三轮回收） |
 
 ### 2. agent 自己观察到什么
@@ -371,7 +371,7 @@ await ctx.parallel("workspace/session-stop", { sessionId });
 
 ### 3. 由代码核实的两个语义点
 
-1. **`workspace/session-stop` 就是用户按停止按钮的那条路径**（`dsh-agent` 模块注释原文）：
+1. **`workspace/session-stop` 就是作者按停止按钮的那条路径**（`dsh-agent` 模块注释原文）：
    "Answer `workspace/session-activity` … and `workspace/session-stop` by cancelling that turn the way the user's own stop does —
    `agent.cancel({ kind: 'user' })`, **but without the stop button's `keepInbox`**, so queued input is discarded with a logged inbox splice".
    → **副作用：排队中的输入会被丢弃**（这是"强制终止"的应有语义，但必须写进文档）。
@@ -427,9 +427,9 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 输出形如：
 
-> sandbox-sweep: 本会话已被插件切为只读（<时间>），目的是执行沙箱痕迹擦除。这是有意为之：**请勿申请 danger-full-access 或改写沙箱策略来绕过它**，先向用户确认。台账见 $DSH_HOME/sandbox-sweep/ledger.json。
+> sandbox-sweep: 本会话已被插件切为只读（<时间>），目的是执行沙箱痕迹擦除。这是有意为之：**请勿申请 danger-full-access 或改写沙箱策略来绕过它**，先向作者确认。台账见 $DSH_HOME/sandbox-sweep/ledger.json。
 
-**只说真话**：`text()` 每次都用 `sandboxPolicy.resolve({session}).mode` 复核，模式已经不是 read-only（例如用户 `/permission workspace-write` 切回）就不输出。
+**只说真话**：`text()` 每次都用 `sandboxPolicy.resolve({session}).mode` 复核，模式已经不是 read-only（例如作者 `/permission workspace-write` 切回）就不输出。
 
 状态来源：`revokeSessions` 切成功时登记 `revokedSessions: Map<sessionId, {at}>`，并同时写一条 `{kind:"revoke", revokedSessions:[…]}` 进台账；插件启动时从台账恢复登记，**跨实例重启仍然生效**。
 
@@ -457,7 +457,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 - **没有服务、事件或贡献点**可让第三方插件往那里插话——要改只能改这三个包。
 
 **替代做法（已实现）**：在我们自己的运行时上下文行里**点名那两个 marker**，让模型在读到提示的同一轮请求里就看到反提权说明：
-「若你看到 `[sandbox: file access denied under read-only mode]` 或 `[sandbox: escalation available …]`，**不要**照它去申请 danger-full-access，先向用户确认。」
+「若你看到 `[sandbox: file access denied under read-only mode]` 或 `[sandbox: escalation available …]`，**不要**照它去申请 danger-full-access，先向作者确认。」
 
 ### 2) 弹窗交互按反馈重做
 
@@ -466,8 +466,8 @@ ctx.inject(["systemPrompt"], (scope) => {
 | 确认项应在执行按钮**上方** | 把「强制终止正在跑的工作」整块（原因 + 会话清单 + 勾选）移到 `[预演]/[确认执行擦除]` **之前**；「其他实例」降级为纯提示行（不再要求空勾选） |
 | 取消「知道了」按钮 | 已删除；关闭方式改为 **Esc / 点击遮罩 / 右上角 ×** |
 | 右上角加关闭按钮 | `.dss-x`（绝对定位在卡片右上，悬停高亮，`aria-label` 本地化，title 提示 Esc） |
-| 不要每次都要用户勾"我已知悉风险" | 门禁改为**只在真会终止对话/进程时**要求勾选（`needForce`）；其他风险只做提示。安装即知悉——README 增加「安装即知悉：本插件会造成什么影响」表（终止工作/切只读/改 ACL/不删文件/擦除后需重启/台账/不撤销 temp） |
-| 关闭页默认勾选清理 | `erase` 默认 **true**；**仅当出现特殊情况**（工作区 ACL 读不到、状态无法确认）才自动取消勾选，并显示**具体原因** + 要求用户手动勾选同意，否则本次只关闭不清理 |
+| 不要每次都要作者勾"我已知悉风险" | 门禁改为**只在真会终止对话/进程时**要求勾选（`needForce`）；其他风险只做提示。安装即知悉——README 增加「安装即知悉：本插件会造成什么影响」表（终止工作/切只读/改 ACL/不删文件/擦除后需重启/台账/不撤销 temp） |
+| 关闭页默认勾选清理 | `erase` 默认 **true**；**仅当出现特殊情况**（工作区 ACL 读不到、状态无法确认）才自动取消勾选，并显示**具体原因** + 要求作者手动勾选同意，否则本次只关闭不清理 |
 
 ## M6 · 跨实例共享工作区：判定与两套提示（本轮补齐）
 
@@ -508,7 +508,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 |---|---|---|
 | 工作区状态未知 | 任一根 ACL 读不到 | 无法确认是否还残留三件套 |
 | **确认共享** | 对方租约声明的根与本实例有交集 | 擦除会让它的受限写入开始失败 |
-| **无法确认是否共享** | 检测到其他实例但**读不到租约**（多半未安装本插件） | 如实按风险提示，要求用户确认 |
+| **无法确认是否共享** | 检测到其他实例但**读不到租约**（多半未安装本插件） | 如实按风险提示，要求作者确认 |
 | 有正在跑的工作 | 会话 `activity` 非空 | 清理/关闭都会终止回合、子智能体、作业、定时提醒；排队输入会被丢弃 |
 
 只有"能读到租约且明确无交集"才不算风险（`sharesWorkspace === false`）。
@@ -549,7 +549,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 ### 本轮改动
 
 - 新增宿主 `peerHomes()`：**同机需要探查的其他 DSH home** = ① `$DSH_HOME` 的兄弟目录（启动器布局 `homes/<版本>`）∪ ② **默认 home `~/.dsh`**——依据 `@deepseek-ai/dsh-home-paths`：`DSH_HOME_DIR_NAME = ".dsh"`、`defaultDshHome() = join(homedir(), ".dsh")`，解析优先级"显式配置 > `$DSH_HOME` > `~/.dsh`"；自己所在的 home 永远排除；
-- `readPeerWorkspaceRoots()` / `readPeerLeases()` 改为遍历 `peerHomes()`：**存活租约声明** ∪ 各 home 的 `storages/workspace.json` 登记表；租约部分只认 `pidAlive()`（进程都没了就不可能再用我们的根，不该拿它打扰用户）；
+- `readPeerWorkspaceRoots()` / `readPeerLeases()` 改为遍历 `peerHomes()`：**存活租约声明** ∪ 各 home 的 `storages/workspace.json` 登记表；租约部分只认 `pidAlive()`（进程都没了就不可能再用我们的根，不该拿它打扰作者）；
 - 宿主 `probeInstances()` 返回值新增 `scanned`（进程枚举是否成功）→ 报告新增 `instancesScanned`；
 - 无租约实例的 `sharesWorkspace`：有人登记过我们的根 → `null`（仍按风险提示）；没人登记过 → `false`（不打扰）；
 - 客户端 `computeRisks(r, action, eraseFlag)` 改为返回 `{risks, noop}`；**擦除副作用类风险（scan/sharing/unknown）只在"确实会擦除"时才计入**（`willErase = !noop && (action !== "close" || eraseFlag !== false)`）——关闭时没东西可擦，就不该拿"会不会伤到别的实例"去拦人；
@@ -574,7 +574,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 用 React 桩（`useState/useEffect/Fragment/jsx/jsxs/createPortal`）按 DSH 客户端 loader 同形装载 bundle：**注册的座位 = `sidebar.footer.action`**、`inject=["slots","locale"]`、`ctx.effect` 注册词典、整棵树递归渲染无异常（两个按钮都渲染出来）。
 
-### 默认 home 的处理（用户要求：home 不在 `homes\` 之下时，只需覆盖默认 `.dsh`）
+### 默认 home 的处理（作者要求：home 不在 `homes\` 之下时，只需覆盖默认 `.dsh`）
 
 - `peerHomes()` 把 `~/.dsh` 与兄弟 home 并列探查——**若真有实例用默认 home 且登记/占用了我们的根，一样能认出来**；
 - 本机实测 `%USERPROFILE%\.dsh` **不存在** → 该候选读不到东西，行为与之前完全一致（不会凭空多出弹窗）；
@@ -590,7 +590,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 ## M7 · 未枚举情况的兜底：宁可多问一句，绝不静默放过（2026-09-26）
 
-### 问题（用户追问："遇到当前未枚举出的情况，有没有兜底"）
+### 问题（作者追问："遇到当前未枚举出的情况，有没有兜底"）
 
 原来的风险判定只覆盖**已枚举出来的形态**（ACL 读不到 / 确认共享 / 无法归属 / 枚举失败 / 有活 / 空操作）。
 其余形态会**静默走"无风险"甚至"空操作"**。最危险的一条：宿主列出 `workspaces: []`（工作区服务缺失或枚举失败）
@@ -604,7 +604,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 | ② 判定异常 | `computeRisks` 自己抛错 | `start()` 里 try/catch → 风险项 `calc`，照常弹窗（绝不吞异常） |
 | ③ 一手材料 | 所有情况（含自检请求失败） | 弹窗底部固定一个「**原始自检报告（点开可复制）**」折叠块：报告 JSON + 原始响应文本 + 错误文本；**点一下即全选**，Ctrl+C 就能拿走问 DSH。自检请求本身失败时同样有（附原始响应/HTTP 状态） |
 
-语义总结：**只要有一丝没看懂，就不会出现"清理成功 / 无需清理"，而是弹窗摆在用户面前**。
+语义总结：**只要有一丝没看懂，就不会出现"清理成功 / 无需清理"，而是弹窗摆在作者面前**。
 
 ### 改动
 
@@ -617,9 +617,9 @@ ctx.inject(["systemPrompt"], (scope) => {
 - `.smoke/risks-test.mjs`：**21 个用例全绿**，新增 8 个兜底用例（响应不是对象 / `workspaces` 缺字段 / 不是数组 / 空数组 / 版本更旧 / 无版本号 / 自带错误项 / `sessions` 缺字段）——**全部 `noop=false`**；风险文案键 10 → 18 个，中英两本词典均有；
 - `.smoke/boot-test.mjs`：除首屏外，把**弹窗真的渲染一遍**（种子状态含 3 类风险 + 执行明细 + 原始报告块），断言「原始自检报告」「有正在跑的工作」「residue=[delete deny]」等文本确实出现（弹窗 29 个文本节点 / 726 字符）。
 
-## 技能 `low-integrity-repair` 修订（用户批准后执行，2026-09-26）
+## 技能 `low-integrity-repair` 修订（作者批准后执行，2026-09-26）
 
-按 `PLAN.md` §6 列的"三处结论需要同步修正"，经用户**明确批准**后修订（技能自身 §7 协议要求：授权后修订 → §8 追加实测记录 → 重新投放）：
+按 `PLAN.md` §6 列的"三处结论需要同步修正"，经作者**明确批准**后修订（技能自身 §7 协议要求：授权后修订 → §8 追加实测记录 → 重新投放）：
 
 | 修正 | 落点 |
 |---|---|
@@ -707,7 +707,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 | rc.2 安装链接断链 | `target=…\Documents\dsh-plugins\dsh-sandbox-sweep resolves=False` | ✅ 已删旧链接、重指当前源码 → `resolves=True` |
 | 源码本体 | `Move-Item` 从未成功（目标目录不存在） | ✅ 28 个文件完好，两个 `node --check` 均 exit=0 |
 
-随后用户澄清：**总目录应建在会话工作区根之内**。于是改走区内路径——一条带守卫（`$ErrorActionPreference='Stop'` + try/catch + 步骤日志）的脚本完成：建目录 → 移动 → 重指链接 → 重生成 home `SOURCE.md` → 字节级回读 → 四套自检。
+随后作者澄清：**总目录应建在会话工作区根之内**。于是改走区内路径——一条带守卫（`$ErrorActionPreference='Stop'` + try/catch + 步骤日志）的脚本完成：建目录 → 移动 → 重指链接 → 重生成 home `SOURCE.md` → 字节级回读 → 四套自检。
 
 ### 字节级回读（技能要求的证据）
 
@@ -726,7 +726,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 2. **绝不要写「失败继续执行」的跨区脚本**：每步要么有守卫，要么 `$ErrorActionPreference='Stop'` + try/catch——否则它会带着错误的 cwd 继续干别的事；
 3. 工具调用一律 try/catch + 打印 `exitCode`/`stdout`/`stderr`/`sandbox`；
 4. **先确认新目标存在，再删旧链接**；
-5. 与其跨区提权，**先问一句目标该放哪**——用户这次的意图本来就是「放在工作区根里的子目录」，那样根本不需要提权；
+5. 与其跨区提权，**先问一句目标该放哪**——作者这次的意图本来就是「放在工作区根里的子目录」，那样根本不需要提权；
 6. `exit=0` 不等于写对了：**必须回读**（这次正是回读才发现 4 个文件与基线不符）。
 
 ## M10 · temp 溢出 + 硬杀遗留：两处兜底（2026-09-26）
@@ -743,7 +743,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 | 1 | **启动清扫扩成三类** | ① **硬杀遗留**：本进程刚起、**还没授权过任何根**，此时注册工作区根若仍带三件套 → 一定是上一轮留下的 → 擦；② 台账 `pending` 补擦（原有）；③ **temp 痕迹**（只擦标签） |
 | 2 | **temp 根纳入清理** | 新增 `probeTempRoots()`：候选父目录 = `os.tmpdir()` ∪ `TEMP`/`TMP` ∪ `%LOCALAPPDATA%\Temp` ∪ `%USERPROFILE%\OneDrive`（本机 temp 被 OneDrive 重定向，实测）；**只认 `^dsh-[A-Za-z0-9]{6}$`** 且探测到痕迹的目录，名字不匹配的一律不碰；8 路并发 + 30 s 缓存 |
 | 2b | **闲置护栏（自查补上的一条）** | temp 扫描是**全机**的，可能扫到**同机其它实例正在使用**的 temp。规则：只动**闲置 ≥ 10 分钟**的目录（`TEMP_IDLE_MS`）——正在运行的实例会不停碰自己的 temp，因此会被排除；本实例自己刚建的 temp 同样被排除 |
-| 3 | **空壳回收（仅用户主动）** | 点「清理」时把「已擦干净的空目录」送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
+| 3 | **空壳回收（仅作者主动）** | 点「清理」时把「已擦干净的空目录」送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
 | 4 | 报告新增 `tempRoots` | `{parents, scanned, dirty, emptyShells, sample}`；`PROBE_VERSION` / `PROBE_MIN` **3 → 4** |
 | 5 | 空操作判定收紧 | `noop` 现在还要求 `tempRoots.dirty === 0`——否则「工作区干净」会让清理短路，temp 痕迹永远清不掉 |
 
@@ -776,11 +776,11 @@ ctx.inject(["systemPrompt"], (scope) => {
 ### 影响评估（决定回退的依据）
 
 - temp 残留**不挡任何操作**：3 个带痕迹目录实测 `DENY=False`、属主 = 当前用户（`<用户名>`）、继承未被阻断 → 删除 / 改名 / 移动都不受影响；
-- 只剩"低标签"，现实症状（预览失败、「这些文件可能有害」）只在**主动浏览或往该目录复制**时可能出现——而 `dsh-<6位>` 是 DSH 自己的 scratch（本会话的 `TEMP` 就指向其中一个），用户没有理由去翻；
+- 只剩"低标签"，现实症状（预览失败、「这些文件可能有害」）只在**主动浏览或往该目录复制**时可能出现——而 `dsh-<6位>` 是 DSH 自己的 scratch（本会话的 `TEMP` 就指向其中一个），作者没有理由去翻；
 - 磁盘与网络可忽略：temp 侧 `dsh-*` 合计 < 10 MB、多为空壳，且 `OneDrive.exe` 未运行（不会上传）；
 - 增量来源是 **DSH 每次新建 temp 根时自己写**的标签，插件消除不了这个来源。
 
-用户据此决定：**temp 不需要插件处理** → 整块去掉，回到"只管注册工作区根 + 台账 pending 补擦"的旧版行为。
+作者据此决定：**temp 不需要插件处理** → 整块去掉，回到"只管注册工作区根 + 台账 pending 补擦"的旧版行为。
 
 ### 改动
 
@@ -812,7 +812,7 @@ temp 残留**可以**由插件收干净，但做法不是"擦标签"（v5 已整
 
 - temp 根由 `mkdtempSync(join(tmpdir(), "dsh-"))` 创建 → 名字 = `dsh-` + 6 位随机串；
 - 它是**按「会话 × 工作区」惰性创建**的（`materializeAclGrant(sessionId, workspaceRoot)`，key = `JSON.stringify([sessionId, workspaceRoot])`），第一次以 workspace-write 跑受限命令时才出现；
-- **正常 dispose 时 DSH 自己会 `rmSync` 掉它**（`removeTempDir`）→ 真正需要插件收的是**硬杀 / 崩溃 / 删除失败**留下的那些；
+- **DSH 自己的 provider dispose 里确实会 `rmSync` 掉它**（`revokeAclGrants → removeTempDir`）—— **但那条链注册在 `ctx.effect` 上，而本插件的关闭路径拿不到 dispose 入口**（见下方「首轮实测后的两处修正」）→ **正常关闭留下的也得由插件收**；"硬杀 / 崩溃"只是其中一部分；
 - 活着的 temp 根会被不停碰（本会话实测 `TEMP` 就指向它），因此**闲置时长是唯一可靠的"没人在用"判据**；`.lock` 只是**临时**文件（同一个活根几分钟前有 2 个、再看是 0 个）→ 只能当"跳过信号"。
 
 ### 判据与阶段（v6）
@@ -873,16 +873,16 @@ temp 残留**可以**由插件收干净，但做法不是"擦标签"（v5 已整
 
 ### 验收（2026-09-27 00:36 实测通过）
 
-用户重启 rc.2 后再点一次关闭，台账 `temp-close`（本地 00:36:35）给出**阳性结果**：
+作者重启 rc.2 后再点一次关闭，台账 `temp-close`（本地 00:36:35）给出**阳性结果**：
 
 ```
 已删=1  跳过=2  errors=(无)      others={"scanned":true,"count":2}  scanned=3
-DEL  C:\Users\High4\OneDrive\dsh-QPzEIx  ok=True  own=True  idle=False  locks=0  条目=0  detail=已先去掉删除拒绝
+DEL  %USERPROFILE%\OneDrive\dsh-QPzEIx  ok=True  own=True  idle=False  locks=0  条目=0  detail=已先去掉删除拒绝
 SKIP dsh-sHFY5D  原因=最近仍被碰过  own=False
 SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 ```
 
-- **自己的根被精确识别并在关闭时删掉**（`own=True`、`idle=False` 也照删）—— 正是用户要的"关闭时优先清理自己的"，而且**不再受"机上还有别的实例"影响**（这次 `others.count=2`）；
+- **自己的根被精确识别并在关闭时删掉**（`own=True`、`idle=False` 也照删）—— 正是作者要的"关闭时优先清理自己的"，而且**不再受"机上还有别的实例"影响**（这次 `others.count=2`）；
 - `detail=已先去掉删除拒绝` 顺带证明 **"先 `icacls /remove:d` 再递归删"这步是必需的**：0.1.7 给 temp 根写的能力 ACE 是带 `Everyone:(DENY)(DC)` 的，不去掉就会被递归删除拒掉；
 - 别人的、刚被碰过的根照旧跳过（`dsh-sNSZk7` 是本会话的）。
 - **待验样本（已验）**：陈旧的 `dsh-sHFY5D` 在 00:36 那次启动时只闲置 9 分钟（< 10 分钟门槛）→ 按规则跳过；**00:39:49 的下一次启动把它删掉了**：
@@ -898,7 +898,7 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 - **日志可见性也已验**（v6.2 的修复）：同一次启动的实例日志里出现了
   `[sandbox-sweep] 启动清扫: {"checked":30,"pending":0,"bootResidue":[],"results":[],"errors":[],"error":null,"temp":{"scanned":2,"others":{"scanned":true,"count":1},"lastInstance":false,"deleted":1,"failed":0,"skipped":1,"errors":[]}}`
   —— 修之前（00:36 那次）因为没有工作区残留要擦，这一行根本不会打印，temp 的结果只能在台账里翻。
-- **顺带修掉一处台账命名**：关闭流程里的擦除步骤原先写 `trigger: "user"`（`eraseRoots` 的默认值）→ 与"用户点「清理」"混在一起，看台账会误判成用户点过按钮（本次排查就被绕了一下）。已改为 `"close"`。**同时它也是 T15 仍未验的旁证**：台账里从来没有 `temp-user` 条目，说明三处入口中"点「清理」"这条还没被真实点过（其逻辑由 `probe-offline` E 段覆盖）。
+- **顺带修掉一处台账命名**：关闭流程里的擦除步骤原先写 `trigger: "user"`（`eraseRoots` 的默认值）→ 与"作者点「清理」"混在一起，看台账会误判成作者点过按钮（本次排查就被绕了一下）。已改为 `"close"`。**同时它也是 T15 仍未验的旁证**：台账里从来没有 `temp-user` 条目，说明三处入口中"点「清理」"这条还没被真实点过（其逻辑由 `probe-offline` E 段覆盖）。
 - **顺带修掉一处日志缺口**：`启动清扫` 那行原先写在 `if (roots.length === 0) return summary;` **之后** → 没有工作区残留要擦时，temp 的结果只进台账、日志里看不到（本次实测就是这样）。现改为**总是打印**。
 
 ## Spike 结项状态（2026-09-26 更新）
@@ -915,5 +915,5 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 ## 仍未做（明确清单）
 
 - 浅色 / 深色两套主题下按钮与弹窗对比度逐一核对；插件"禁用 / 回滚"实测；测试矩阵 T3（常驻终端）、T4（作业 + 定时提醒）、T7（大工作区耗时）、T12（并发点击）留待真实场景观察。
-- ~~技能 `low-integrity-repair` 三处结论修正~~ → **2026-09-26 已按用户批准执行**（见上一节）。
-- ~~擦除成功后 UI 提示"建议重启"~~ → **用户明确表示不需要**（2026-09-26），维持 README 影响表 + 步骤明细的写法。
+- ~~技能 `low-integrity-repair` 三处结论修正~~ → **2026-09-26 已按作者批准执行**（见上一节）。
+- ~~擦除成功后 UI 提示"建议重启"~~ → **作者明确表示不需要**（2026-09-26），维持 README 影响表 + 步骤明细的写法。

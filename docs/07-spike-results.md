@@ -688,7 +688,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 | rc.2 的安装链接 | 相对链接 `..\..\..\..\..\dsh-sandbox-sweep` | **绝对链接**指向 `plugins\dsh-sandbox-sweep` |
 | 插件总目录约定 | —— | **自建插件一律放 `<工作区根>\plugins\<包名>`**（放这里就永远在会话工作区内，不需要跨区提权） |
 
-### 第一次尝试（放到 `%USERPROFILE%\Documents\dsh-plugins`）为什么卡住——我违反了 `cross-workspace-deploy` 技能
+### 第一次尝试（放到 `%USERPROFILE%\Documents\dsh-plugins`）为什么卡住——我违反了 `move-and-deploy` 技能（当时名为 `cross-workspace-deploy`）
 
 第一次的目标在工作区**外**，本该按技能走「工作区内暂存 → MANIFEST → **一次提权投放** → 字节级回读」。我没有先加载该技能，于是：
 
@@ -722,7 +722,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 ### 教训（给下次的自己）
 
-1. 目标在会话工作区之外时，**先加载 `cross-workspace-deploy`**：暂存 → MANIFEST → **一次提权** → 字节级回读；
+1. 目标在会话工作区之外时，**先加载 `move-and-deploy`**（该技能已于 2026-09-26 由 `cross-workspace-deploy` 泛化，覆盖移动/改名/迁移/重建链接/批量复制与搬家后的引用同步）：暂存 → MANIFEST → **一次提权**（长任务放后台作业）→ 字节级回读；
 2. **绝不要写「失败继续执行」的跨区脚本**：每步要么有守卫，要么 `$ErrorActionPreference='Stop'` + try/catch——否则它会带着错误的 cwd 继续干别的事；
 3. 工具调用一律 try/catch + 打印 `exitCode`/`stdout`/`stderr`/`sandbox`；
 4. **先确认新目标存在，再删旧链接**；

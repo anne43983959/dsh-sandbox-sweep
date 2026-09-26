@@ -678,7 +678,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 | 新建插件总目录 | ✅ `<工作区根>\plugins\`（**会话工作区根之内**，无需提权） |
 | 把插件搬进去 | ✅ 28 个文件整体重命名到位：`<工作区根>\dsh-sandbox-sweep` → `<工作区根>\plugins\dsh-sandbox-sweep` |
 | 修改「记录源文件位置」的文件 | ✅ `SOURCE.local.md`（全量重写为新布局 + 总目录约定）、`docs/05` 的工作区行、home 里的 `SOURCE.md`（插件启动自动重写） |
-| GitHub 建仓 + 推送 | ✅ `https://github.com/anne43983959/dsh-sandbox-sweep`（**私有**），首次提交 `59ed886` |
+| GitHub 建仓 + 推送 | ✅ `https://github.com/anne43983959/dsh-sandbox-sweep`（**私有**），首次提交 `98853f6` |
 
 ### 路径变化
 
@@ -718,7 +718,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 ### 仓库
 
-`https://github.com/anne43983959/dsh-sandbox-sweep`（**私有**），首次提交 `59ed886`。推送内容只有插件自身的代码与文档；`SOURCE.local.md`（含本机绝对路径）由 `.gitignore` 排除，**未进仓库**。
+`https://github.com/anne43983959/dsh-sandbox-sweep`（**私有**），首次提交 `98853f6`。推送内容只有插件自身的代码与文档；`SOURCE.local.md`（含本机绝对路径）由 `.gitignore` 排除，**未进仓库**。
 
 ### 教训（给下次的自己）
 

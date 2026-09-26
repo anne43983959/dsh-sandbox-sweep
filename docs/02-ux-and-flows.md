@@ -114,11 +114,13 @@ IDLE
 
 ### 4.3 擦除（ERASE）
 对每个工作区根，**顺序不可颠倒**：
-1. 去掉 world 的 `FILE_DELETE_CHILD` 拒绝；
-2. 撤销能力 ACE 并清除低标签（走模块 API 或 Win32；**不要用 `icacls /remove:g`**）；
+1. 撤销能力 ACE 并清除低标签（走模块 API 或 Win32；**不要用 `icacls /remove:g`**）；
+2. 去掉 world 的 `FILE_DELETE_CHILD` 拒绝；
 3. 外溢兜底：对每个根的上层目录做深度受限的低标签扫描，发现孤儿就地复位。
 4. 校验：根上无 `Low Mandatory Level` / 无 `(DENY)` / 无 `S-1-4-`；目录级全量 + 文件抽样（按配额）。
 5. 台账：`{root, startedAt, steps[], verified, failures[]}`；失败项标记 "pending"，供下次启动清扫。
+
+> ⚠️ 上面第 1、2 步的顺序**曾写反**（曾：先去 world 拒绝 → 再撤能力 ACE）。实测反了会踩顺序陷阱：三件套不再精确匹配，`add()` 把它们**整组写回**（重新打 Low），随后 `dispose()` 只撤 ACE 与标签、**拒绝留了下来**——实测 `verified=false / residue=["delete deny"]`。以「**先撤销、后去拒绝**」为准，实测依据见 `docs/03` §2.2。
 
 > 早期规格的第 3 步是「删除本次创建的 `dsh-*` 私有 temp 目录」——**v5 起不再处理实例临时区**，该步已移除，见 `docs/07` 的 M11。
 

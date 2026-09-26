@@ -49,7 +49,7 @@ async function eraseRoot(root: string) {
   return verify(root)                      // ④ 根 + 目录级全量 + 文件抽样（配额）
 }
 ```
-> 早期配方里还有一步「③ 删除本次创建的 `dsh-*` 私有 temp 目录」——**v5 起不再处理实例临时区**，该步已移除，见 `docs/07` 的 M11。
+> 早期配方里还有一步「③ 删除本次创建的 `dsh-*` 私有 temp 目录」——该步曾于 v5 整块移除（见 `docs/07` 的 M11）；**v6 起按分层规则直接删除实例临时目录**，但它**不属于擦除配方**（擦除只针对注册工作区根），见下 §2.2bis 与 `docs/07` 的 M12。
 
 - ①实现：`AclWriteGrant.create(workspaceWriteSid(root)) → add(root, false) → dispose()`（实测可彻底移除 ACE 与标签；禁止 `icacls /remove:g`——能力 SID 未映射）。
 - ⚠️ **顺序陷阱（本机实测踩到过）**：若先去掉拒绝，三件就不再精确匹配，`add()` 会把三件**重写一遍**（重新打 Low + 全树传播），
@@ -57,12 +57,30 @@ async function eraseRoot(root: string) {
 - 多个历史能力 SID 需逐个撤销；还有别的能力 ACE 在时标签会被保留，最后一个撤销时才清。
 - 代价：擦除 ≈ 0.16 ms/对象；**结果必须回读校验**，失败落台账。
 
+### 2.2bis 实例 temp 根的分层直接删除（v6；删除而非擦除）
+
+**对象与来源**：`dsh-sandbox-local` 用 `mkdtempSync(join(tmpdir(), "dsh-"))` 按「会话 × 工作区」**惰性创建** temp 根（`dsh-<6位>`）；正常 dispose 时 DSH 自己 `rmSync`，**硬杀 / 崩溃 / dispose 失败**留下的才由插件收。
+**只认严格命名**：`TEMP_DIR_RE = /^dsh-[A-Za-z0-9]{6}$/`——`dsh-spill-*` / `dsh-subprocess-*` / `dsh-ssh-uploads` 是别的命名空间，一律不碰。父目录候选由 `tempParents()` 给出：`os.tmpdir()`、`%TEMP%`、`%TMP%`、`%LOCALAPPDATA%\Temp`、`%USERPROFILE%\OneDrive`（去重、只留真实存在的；实测 `os.tmpdir()` 会被 OneDrive 重定向）。
+
+| 层 | 判据 | 何时删 |
+|---|---|---|
+| **低风险** | 严格命名 ∧ **无 `.lock`** ∧ **闲置 ≥ 10 分钟**（`TEMP_IDLE_MS`） | **任何阶段都删** |
+| **可能被占用** | 有 `.lock` **或** 最近仍被碰过（mtime < 10 分钟） | 仅当 **`lastInstance`** = 实例扫描**成功**且 0 个其它实例 |
+| 扫描失败 / 不确定 | — | **绝不当成「没有其它实例」**，只按低风险层处理 |
+
+- **为什么 `.lock` 只能当跳过信号**：实测同一个活着的 temp 根几分钟前有 2 个 `.lock`、再看是 0 个（`.lock` 是临时的）；唯一可靠的「没人在用」依据是**闲置时长**。
+- **为什么不能「启动时全删」**：每个活实例的 `%TEMP%` 就是它自己的 temp 根（实测），删活的会打断别人。
+- **为什么直接删、不走回收站**：回收站副本会**带着低标签**留下，与「零残留」矛盾。删除用 `fs.rm(recursive, force, maxRetries: 0)`；探测到 `Everyone:(DENY)(DC)` 先 `icacls /remove:d`（不加 `/T`）再删；遇 `EBUSY` / `EPERM` / `EACCES` **立即放弃该根**（视为「还有人在用」），不做部分强删、不重试。
+- **三个触发阶段**（台账 `trigger` 分别为 `temp-boot` / `temp-close` / `temp-user`）：boot = 启动清扫第 ③ 步，**静默**（只写台账 + 日志，不弹窗）；close = `closeInstance` 的**最后一步**（报告里 temp 行排在工作区行之前、执行排在 DISPOSE 之前）；user = 点「清理」时在擦除之后**单独跑一次**。本实例**自己的根**（本进程启动后新出现的，靠 `$DSH_HOME/sandbox-sweep/temp-baseline.json` 基线认）**排最后**——关闭链自己还要用 TEMP。
+- **报告与契约**：`probe` 报告新增 `tempRoots`（`parents / scanned / selfLifetime / idle / locked / fresh / deletable / othersScanned / othersCount / lastInstance / sample[]`；`deletable = idle + (lastInstance ? locked + fresh : 0)`）；`PROBE_VERSION` / `PROBE_MIN` **5 → 6**。台账 temp 条目含 `temp:{scanned, others, lastInstance, deleted[], skipped[], errors[]}`，跳过项带原因（有 `.lock` / 最近仍被碰过）。
+
 ### 2.3 stop（关闭时序）
 ```
 FENCE    置"不再受理新的受限启动"（参照终端后端的模式围栏形状）
 QUIESCE  cancel 各 agent → 关终端 → 取消作业 → 等待子进程（超时则强杀并记录）
 FLUSH    逐会话 ctx.sessions.flush(session)
 ERASE    按用户选择执行（失败按用户选择：中止 / 落台账继续）
+TEMP     分层直接删除实例 temp 根（closeInstance 的最后一步，排在 DISPOSE 之前；本实例自己的根排最后——关闭链自己还要用 TEMP）
 DISPOSE  走宿主自身的 dispose 链（保证 sandbox-local 的 temp 撤销执行）
 EXIT     最后退出进程
 ```
@@ -93,8 +111,8 @@ EXIT     最后退出进程
 
 ## 5. 兜底（覆盖强杀路径）
 
-- **台账**：`{roots, status: 'granted'|'erased'|'pending', updatedAt}`，写在插件数据目录（非工作区内）。
-- **启动清扫**：插件在宿主启动时读取"pending"项并重跑 erase + verify。
+- **台账**：`{roots, status: 'granted'|'erased'|'pending', updatedAt}`，写在插件数据目录（非工作区内）；v6 起 temp 清理另写 `trigger: 'temp-boot'|'temp-close'|'temp-user'` 的条目，含 `temp:{scanned, others, lastInstance, deleted[], skipped[], errors[]}`。
+- **启动清扫**（宿主启动 3 s 后）：① 擦掉"硬杀遗留"的脏根 ② 读台账 "pending" 项补擦 ③ **静默**分层删除实例 temp 根（只写台账 + 日志，不弹窗）。
 - 该兜底是"最终无残留"的唯一保障——进程被 `TerminateProcess` 或断电时，任何退出钩子都不会执行。
 
 ## 6. 骨架与文档的对应关系

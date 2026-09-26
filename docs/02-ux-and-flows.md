@@ -1,7 +1,7 @@
 # 02 · UI 规格与流程状态机
 
 > **实施现状（2026-09-26，以此为准）**：座位最终落在 **`sidebar.footer.action`**（`sidebar.workspaces` 是 single 型，且"新会话"按钮硬编码在它上方，没有可用座位）；按钮文案 zh 为「**清理沙箱痕迹**」/「**关闭DSH**」（收起态上下排列、带图标）。
-> 交互模型已由 **M6.1 + M6.3** 取代本文早期的"勾选 + 二次确认"：**无风险不弹窗**（成功只弹居中的 3 秒气泡，失败才弹窗贴报告）；**有风险才弹窗**，弹窗内**没有任何勾选**——再点一次即视为接受；工作区**本来就没有痕迹**时清理是空操作（不切只读、不终止会话）。
+> 交互模型已由 **M6.1 + M6.3** 取代本文早期的"勾选 + 二次确认"：**无风险不弹窗**（成功只弹居中的 3 秒气泡，失败才弹窗贴报告）；**有风险才弹窗**，弹窗内**没有任何勾选**——再点一次即视为接受；工作区**本来就没有痕迹**、且报告里没有可清理的实例 temp 根（`tempRoots.deletable === 0`）时清理是空操作（不切只读、不终止会话）。
 > 本文档下面出现的"勾选/门禁/两步确认"描述只作**设计历史**保留；判定矩阵与实测见 `07-spike-results.md` 的 M6.1 / M6.3。
 
 ## 1. 按钮规格
@@ -74,9 +74,18 @@ interface PreflightReport {
     hasTrioRisk: boolean          // version >= 0.1.7-alpha.1
     source: 'process-scan' | 'lease' | 'launcher-config'
   }>
+  tempRoots: {                   // v6：实例 temp 根的「分层直接删除」清单（报告里排在工作区行之前）
+    parents: string[]; scanned: number; selfLifetime: number
+    idle: number; locked: number; fresh: number
+    deletable: number            // = idle + (lastInstance ? locked + fresh : 0)
+    othersScanned: boolean; othersCount: number; lastInstance: boolean
+    sample: Array<{ root: string; idle: boolean; locks: number; deny: boolean; lowLabel: boolean; entries: number | null }>
+  } | null
   blockers: Array<{ kind: 'F' | 'X'; code: string; detail: string; remedy: string }>
 }
 ```
+
+> v6 起报告块多一行「**临时区 N 个 · 可清理 x · 占用中 y · 刚用过 z**」（排在工作区行之前；`占用中` / `刚用过` 仅在非 0 时出现），标题栏标出父目录与「本机仅此实例 / 实例扫描不可用，只清无风险的」（判据见 `docs/03` §2.2bis）。
 
 ### 3.3 提示对话框（CONFIRM）
 - 标题：**关闭 DeepSeek Harness**
@@ -122,7 +131,7 @@ IDLE
 
 > ⚠️ 上面第 1、2 步的顺序**曾写反**（曾：先去 world 拒绝 → 再撤能力 ACE）。实测反了会踩顺序陷阱：三件套不再精确匹配，`add()` 把它们**整组写回**（重新打 Low），随后 `dispose()` 只撤 ACE 与标签、**拒绝留了下来**——实测 `verified=false / residue=["delete deny"]`。以「**先撤销、后去拒绝**」为准，实测依据见 `docs/03` §2.2。
 
-> 早期规格的第 3 步是「删除本次创建的 `dsh-*` 私有 temp 目录」——**v5 起不再处理实例临时区**，该步已移除，见 `docs/07` 的 M11。
+> 早期规格的第 3 步是「删除本次创建的 `dsh-*` 私有 temp 目录」——该步曾于 v5 整块移除（见 `docs/07` 的 M11）；**v6 起按分层规则直接删除实例临时目录**，但它**不是擦除的一步**：擦除之后由宿主单独跑一次 temp 清理（点「清理」时 phase=`user`、关闭链 phase=`close`、启动清扫 phase=`boot`），见 `docs/07` 的 M12。
 
 ### 4.4 收尾（本方案新增，不可省略）
 擦除成功后：

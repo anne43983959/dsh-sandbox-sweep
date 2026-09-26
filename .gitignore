@@ -1,0 +1,15 @@
+node_modules/
+types/vendor/
+.sandbox/
+*.log
+
+# 本机专属的"源码定位"说明（含绝对路径、home 与实例信息）：由本机生成，不随仓库分发
+SOURCE.local.md
+
+# 离线自检会在这里造一个假 home（正常跑完会自己删掉，崩溃时可能残留）
+.smoke/fakehome/
+
+# 注意：lib/ 曾经是构建产物目录，但**现在它是手写源码**
+#   lib/index.js  = 宿主半（路由 / API / ACL 擦除 / 会话与关闭）
+#   lib/client.js = 客户端半（侧栏两个按钮、弹窗、气泡）
+# 所以**不要**再忽略 lib/，否则仓库里只剩 src/ 的早期骨架，真正的实现会丢。

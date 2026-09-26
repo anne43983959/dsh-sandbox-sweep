@@ -1,0 +1,25 @@
+{
+  "name": "dsh-sandbox-sweep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH WebUI 插件：侧栏两个按钮（清理沙箱痕迹 / 关闭 DeepSeek Harness）。M0 阶段仅验证界面与槽位接线。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": ["lib", "assets"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

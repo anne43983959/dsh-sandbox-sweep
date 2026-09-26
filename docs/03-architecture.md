@@ -45,11 +45,12 @@ dsh-sandbox-sweep/
 async function eraseRoot(root: string) {
   await revokeCapabilityAndLabel(root)     // ① 必须先做：三件精确在位时 add() 命中跳过（0 传播），dispose() 撤 ACE + 清标签
   await removeWorldDeleteChildDeny(root)   // ② 再去 world 删除拒绝（icacls；Everyone 有名字，可解）
-  await removeOwnedTempDirs(root)          // ③ 本次创建的 dsh-*（★目录删除场景才需要"先解拒绝再删"）
-  await sweepSpillAround(root)             // ④ 上层目录深度受限扫描孤儿标签
-  return verify(root)                      // ⑤ 根 + 目录级全量 + 文件抽样（配额）
+  await sweepSpillAround(root)             // ③ 上层目录深度受限扫描孤儿标签
+  return verify(root)                      // ④ 根 + 目录级全量 + 文件抽样（配额）
 }
 ```
+> 早期配方里还有一步「③ 删除本次创建的 `dsh-*` 私有 temp 目录」——**v5 起不再处理实例临时区**，该步已移除，见 `docs/07` 的 M11。
+
 - ①实现：`AclWriteGrant.create(workspaceWriteSid(root)) → add(root, false) → dispose()`（实测可彻底移除 ACE 与标签；禁止 `icacls /remove:g`——能力 SID 未映射）。
 - ⚠️ **顺序陷阱（本机实测踩到过）**：若先去掉拒绝，三件就不再精确匹配，`add()` 会把三件**重写一遍**（重新打 Low + 全树传播），
   随后 `dispose()` 只撤 ACE + 清标签、**拒绝留了下来**——实测 `verified=false / residue=["delete deny"]`。改回"先撤销、后去拒绝"后 `verified=true / residue=[]`。
@@ -62,7 +63,7 @@ FENCE    置"不再受理新的受限启动"（参照终端后端的模式围栏
 QUIESCE  cancel 各 agent → 关终端 → 取消作业 → 等待子进程（超时则强杀并记录）
 FLUSH    逐会话 ctx.sessions.flush(session)
 ERASE    按用户选择执行（失败按用户选择：中止 / 落台账继续）
-DISPOSE  走宿主自身的 dispose 链（保证 sandbox-local 的 temp 撤销与 temp 目录清理执行）
+DISPOSE  走宿主自身的 dispose 链（保证 sandbox-local 的 temp 撤销执行）
 EXIT     最后退出进程
 ```
 - **禁止** 在 DISPOSE 之前 `process.exit()`；

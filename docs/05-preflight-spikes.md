@@ -24,7 +24,7 @@
 | S3 | 宿主↔客户端 RPC 的注册与鉴权 | 读 `dsh-api-remote*`/`dsh-client-connection` 的注册面；在宿主半注册一个 echo 方法，客户端调用成功 | RPC 模板（含 nonce 校验） | D3 通道 |
 | S4 | "活跃对话"的准确口径与 `AgentHandle.dispose()` 的真实副作用 | 读 `dsh-agent` 类型定义 + 在小实例上实测（1 个空会话） | 口径表（四类）+ dispose 副作用结论 | 02 · 自检字段；风险 R6 |
 | S5 | 常驻终端的枚举与关闭 API | 读 `dsh-terminal` 类型；实测"有终端时会话模式切换被拒"与"先关终端后可切" | 终端阻塞的处置流程 | R3 对策 |
-| S6 | 宿主优雅退出链：是否有官方 shutdown 钩子 | 读 `dsh-sandbox-local` 的 `ctx.effect` 与宿主生命周期；实测 `dispose → exit` 后 temp 目录是否消失 | 退出时序确认 | 关闭流程 M3 出口判据 |
+| S6 | 宿主优雅退出链：是否有官方 shutdown 钩子 | 读 `dsh-sandbox-local` 的 `ctx.effect` 与宿主生命周期；实测 `dispose → exit` 的退出时序 | 退出时序确认 | 关闭流程 M3 出口判据 |
 | S7 | 宿主进程内可用 WMI 取 `node.exe` 命令行 | 在宿主半插件里跑一次进程扫描（不要用受限会话试，那里 WMI 被禁） | 版本识别可行性 | 其他实例自检可行性 |
 | S8 | 宿主进程内写 ACL 的可行性与失败面 | 用模块 API 对一个 100 对象实验目录跑擦除 + 校验（复用既有实验方法） | 失败模式清单 | R5/R7 |
 | S9 | 本地插件的安装/禁用/回滚路径 | 用插件侧栏 "Add plugin" 装入本地路径的 hello-world，观察 `cordis.patch.yml` 变化，再禁用/卸载 | 安装与回滚手册 | 交付流程 |
@@ -58,7 +58,7 @@
 - [ ] S2 有结论，hello-world 客户端插件可在本机 WebUI 渲染
 - [ ] S3 有模板，客户端能调用宿主自定义方法
 - [ ] S4/S5 的口径表落地到 `shared/types.ts`
-- [ ] S6 的退出时序经一次实测验证（temp 目录消失 + `exit code: Some(0)`）
+- [ ] S6 的退出时序经一次实测验证（`exit code: Some(0)`）
 - [ ] S7/S8 的可行性结论写入 `docs/01-facts.md`
 - [ ] 测试实例就绪（**不要在生产实例上做关闭/擦除实验**）
 - [ ] 回滚手册可执行（能在 2 分钟内让按钮消失且不留配置残留）

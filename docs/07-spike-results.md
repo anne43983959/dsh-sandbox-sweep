@@ -753,9 +753,53 @@ ctx.inject(["systemPrompt"], (scope) => {
 - 断言用 `TEMP` / `LOCALAPPDATA` / `USERPROFILE` 重定向到假目录，**不碰真实临时区**；
 - 顺带修掉两处**把版本号写死**的测试用例（`probeVersion: 3` → `Number(minMatch[1])`），它们在新 `PROBE_MIN=4` 下会误报 `stale`。
 
-### 尚未实测（需要重启 rc.2 才算数）
+### 实测结果（重启 rc.2 后）
 
-- 真实环境里「启动清扫擦掉那 10 个带标签 temp」与「点清理回收空壳」还没跑过（宿主改动要重启装载）。预期首次启动日志出现 `[sandbox-sweep] 启动清扫: {..."tempRoots":[…]}`。
+- 首次启动确实跑了 temp 清扫，但**结果与预期相反**：45 个只有 ACE 的 temp 目录被"擦"成 `ACE + 低标签`，10 个完整三件套只掉了 DENY，重复执行零变化。
+- → **本项改动判定为错误，已在 M11 整块回退**（含根因、影响评估与存量处置）。下面 M10 的改动表作为历史保留。
+## M11 · temp 处理整块回退（2026-09-26，同日更正 M10）
+
+### 起因：M10 的 temp 擦除是错的，而且会加重痕迹
+
+重启 rc.2 后按 M10 的清单实测，台账（`$DSH_HOME/sandbox-sweep/ledger.json`）第 21–23 条给出反证：
+
+| 记录 | 触发 | 根数 | 擦前 → 擦后 | 结果 |
+|---|---|---|---|---|
+| #21 | `boot`（启动 3 s 后自动） | 55 | `A→AL` ×45 · `ADL→AL` ×10 | `verified` **0/55**，全部进 `residue` |
+| #22 | `user`（点「清理」） | 56 | `AL→AL` ×55 · `-→-` ×1 | temp 部分**零变化**；只有工作区根通过 |
+| #23 | `user` | 1 | `-→-` | 通过 |
+
+（`A`=能力 ACE、`D`=`Everyone` 删除拒绝、`L`=低完整性标签）
+
+**根因（已证实，非推测）**：实例 temp 目录上的能力 ACE 用的是 `tempWriteSid(dir)`（实测 `S-1-4-359019936-190231595-1`），而插件对**所有**根一律调用 `workspaceWriteSid(root)`（实测 `S-1-4-466131764-673542006`）——撤的是**另一个 SID**。`AclWriteGrant.create(sid).add(root,false)` 只在"现存三件套与该 SID 精确匹配"时才是空操作、由 `dispose()` 撤销；SID 不匹配时它就是个**授权**动作（写 ACE + 把标签降到 Low），`dispose()` 只撤自己那部分 → **45 个原本只有 ACE 的 temp 目录反被加上低标签**，且再执行一次仍是 `AL→AL`（不收敛）。
+
+### 影响评估（决定回退的依据）
+
+- temp 残留**不挡任何操作**：3 个带痕迹目录实测 `DENY=False`、属主 = 当前用户（`<用户名>`）、继承未被阻断 → 删除 / 改名 / 移动都不受影响；
+- 只剩"低标签"，现实症状（预览失败、「这些文件可能有害」）只在**主动浏览或往该目录复制**时可能出现——而 `dsh-<6位>` 是 DSH 自己的 scratch（本会话的 `TEMP` 就指向其中一个），用户没有理由去翻；
+- 磁盘与网络可忽略：temp 侧 `dsh-*` 合计 < 10 MB、多为空壳，且 `OneDrive.exe` 未运行（不会上传）；
+- 增量来源是 **DSH 每次新建 temp 根时自己写**的标签，插件消除不了这个来源。
+
+用户据此决定：**temp 不需要插件处理** → 整块去掉，回到"只管注册工作区根 + 台账 pending 补擦"的旧版行为。
+
+### 改动
+
+| # | 改动 |
+|---|---|
+| 1 | 宿主：删掉 `TEMP_DIR_RE` / `TEMP_IDLE_MS` / `tempParents()` / `probeTempRoots()` / `dirtyTempRoots()` / `recycleDirs()` 与报告字段 `tempRoots`；启动清扫回到**两类**；`/erase` 不再并入 temp 根、不再回收空壳；**插件从此不删除任何目录或文件** |
+| 2 | 客户端：删掉报告里的「临时区」行与 `secTemp`/`kDirty`/`kShells` 文案键（中英各一套）；空操作判定恢复为"工作区三项皆无"；`toastNoop` 回到"无需清理：工作区没有沙箱痕迹" |
+| 3 | 契约：`PROBE_VERSION` / `PROBE_MIN` **4 → 5** |
+| 4 | 启动清扫新增护栏：台账 `pending` 里**路径已不存在**的根跳过（否则删完 temp 会刷一堆无意义错误行） |
+| 5 | 自检：`risks-test` 去掉 3 例 temp 用例（24 → **21 例**，仍 `ALL OK`）；`probe-offline` 删掉 D 段；`boot-test` 种子报告去掉 `tempRoots` |
+| 6 | 自检去环境依赖：`probe-offline` A 段原先把**版本名写死**（"收录兄弟 home 0.1.5-rc.3"），又把**环境数据当不变量**（"我们的根没被别人登记"——而 rc.3 的 `storages/workspace.json` 本来就登记着启动器目录）→ 改为按实际目录动态断言，环境相关项只报告不计失败 |
+
+### 存量处置与两条教训
+
+- 3 个空闲的带标签 temp 目录（`dsh-5chAMN` / `dsh-BJSEhH` / `dsh-iVhpYq`）已删除；正在使用中的 `dsh-sNSZk7`（本会话 `TEMP` 指向它）**未动**；
+- 删掉的 52 个空壳**确实进了回收站**（`$I` 53 条、创建于同一时刻）——插件的 `recycleDirs()` 是诚实的；
+- **教训 1（回收站）**：`pwsh`(7 / .NET Core) 的 `Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)` **不进回收站、直接永久删除**；插件的 `recycleDirs()` 用的是 `powershell.exe`(5.1) 才是真回收。判定方法：数 `C:\$Recycle.Bin\<SID>\$I*` 条数是否增加（本次手工删除时 53 → 53，故为永久删除）。**注意 `$R` 负载若是目录，用 `-File` 数会得 0**，别据此误判。
+- **教训 2（命名空间）**：临时区里的 `dsh-*` 不止一种——`dsh-<6位>` 是沙箱 temp 根（**会**带三件套），`dsh-spill-*` / `dsh-subprocess-*` / `dsh-ssh-uploads` 是别的用途（实测**不带**三件套）。按前缀模糊匹配会把不该动的目录圈进来；插件原来只认 `^dsh-[A-Za-z0-9]{6}$` 是对的。
+
 ## Spike 结项状态（2026-09-26 更新）
 
 | Spike | 状态 | 落地方式 / 结论文档 |

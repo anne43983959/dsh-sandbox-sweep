@@ -20,7 +20,7 @@ description: 当本机装有 dsh-sandbox-sweep 插件、且出现这些症状时
 - `Everyone:(CI)(DENY)(DC)` → 删除拒绝（**这就是"目录删不掉"的成因**）
 - `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)` → 低完整性标签
 
-**第二处溢出面：实例 temp**。同一套标签也会写到实例 temp 目录（形如 `dsh-<6位>`，通常在 `%TEMP%` 或 OneDrive 重定向后的 `%USERPROFILE%\OneDrive`）。它们在工作区之外、多为空壳，但会累积。插件现在的行为：**启动时自动擦掉 temp 上的痕迹**（只擦标签），**你点「清理」时再把已擦干净的空壳送回收站**（有内容的目录一概不动）。所以看到 `%TEMP%` 里一堆 `dsh-*` 是正常残留，点一次「清理」即可收走空壳。
+**第二处溢出面（插件不再处理）**：同一套标签也会写到**实例 temp 目录**（形如 `dsh-<6位>`，通常在 `%TEMP%` 或 OneDrive 重定向后的 `%USERPROFILE%\OneDrive`）。**v5 起插件对它不做任何处理**——原先的擦除用错了 SID（temp 目录上写的是 `tempWriteSid`，插件却按 `workspaceWriteSid` 撤），结果不是撤销而是授权：实测 45 个原本只有 ACE 的 temp 目录反被加上低标签，且重复执行不收敛。评估后确认这些残留**不影响日常使用**（没有 DENY 不挡删除、属主是自己、多为空壳），所以整块去掉，交给系统临时目录卫生回收。
 
 ## 遇到这些症状时怎么判断
 

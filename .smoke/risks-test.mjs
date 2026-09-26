@@ -54,11 +54,6 @@ const cases = [
 	["兜底 · 报告无版本号（多半没重启）→ stale", { ...base, probeVersion: undefined }, "sweep", true, (v) => v.noop === false && kinds(v) === "stale"],
 	["兜底 · 报告自带错误项 → diag", { ...base, errors: ["会话枚举失败: x"] }, "sweep", true, (v) => v.noop === false && kinds(v) === "diag"],
 	["兜底 · sessions 缺字段 → shape", { probeVersion: Number(minMatch[1]), workspaces: [clean], otherInstances: [], errors: [] }, "close", true, (v) => v.noop === false && kinds(v) === "shape"],
-
-	/* ---- temp（实例临时区）也参与空操作判定 ---- */
-	["temp · 工作区干净但临时区带痕迹 → 不是空操作", { ...base, tempRoots: { dirty: 3, scanned: 128 } }, "sweep", true, (v) => v.noop === false && kinds(v) === ""],
-	["temp · 临时区也干净 → 空操作", { ...base, tempRoots: { dirty: 0, scanned: 128 } }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
-	["temp · 没有 tempRoots 字段（旧宿主）→ 按 0 处理", { ...base, tempRoots: undefined }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
 ];
 
 let bad = 0;

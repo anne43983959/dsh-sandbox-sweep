@@ -116,10 +116,11 @@ IDLE
 对每个工作区根，**顺序不可颠倒**：
 1. 去掉 world 的 `FILE_DELETE_CHILD` 拒绝；
 2. 撤销能力 ACE 并清除低标签（走模块 API 或 Win32；**不要用 `icacls /remove:g`**）；
-3. 删除本次创建的 `dsh-*` 私有 temp 目录；
-4. 外溢兜底：对每个根的上层目录做深度受限的低标签扫描，发现孤儿就地复位。
-5. 校验：根上无 `Low Mandatory Level` / 无 `(DENY)` / 无 `S-1-4-`；目录级全量 + 文件抽样（按配额）。
-6. 台账：`{root, startedAt, steps[], verified, failures[]}`；失败项标记 "pending"，供下次启动清扫。
+3. 外溢兜底：对每个根的上层目录做深度受限的低标签扫描，发现孤儿就地复位。
+4. 校验：根上无 `Low Mandatory Level` / 无 `(DENY)` / 无 `S-1-4-`；目录级全量 + 文件抽样（按配额）。
+5. 台账：`{root, startedAt, steps[], verified, failures[]}`；失败项标记 "pending"，供下次启动清扫。
+
+> 早期规格的第 3 步是「删除本次创建的 `dsh-*` 私有 temp 目录」——**v5 起不再处理实例临时区**，该步已移除，见 `docs/07` 的 M11。
 
 ### 4.4 收尾（本方案新增，不可省略）
 擦除成功后：

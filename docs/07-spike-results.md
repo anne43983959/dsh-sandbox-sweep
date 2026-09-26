@@ -885,7 +885,19 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 - **自己的根被精确识别并在关闭时删掉**（`own=True`、`idle=False` 也照删）—— 正是用户要的"关闭时优先清理自己的"，而且**不再受"机上还有别的实例"影响**（这次 `others.count=2`）；
 - `detail=已先去掉删除拒绝` 顺带证明 **"先 `icacls /remove:d` 再递归删"这步是必需的**：0.1.7 给 temp 根写的能力 ACE 是带 `Everyone:(DENY)(DC)` 的，不去掉就会被递归删除拒掉；
 - 别人的、刚被碰过的根照旧跳过（`dsh-sNSZk7` 是本会话的）。
-- **待验样本**：陈旧的 `dsh-sHFY5D` 在 00:36 那次启动时只闲置 9 分钟（< 10 分钟门槛）→ 按规则跳过；下一次启动（闲置已 >10 分钟、无 `.lock`）**应当被启动清扫删掉** —— 正好当 boot 路径的验收样本。
+- **待验样本（已验）**：陈旧的 `dsh-sHFY5D` 在 00:36 那次启动时只闲置 9 分钟（< 10 分钟门槛）→ 按规则跳过；**00:39:49 的下一次启动把它删掉了**：
+
+```
+[temp-boot] 16:39:49  lastInstance=False  others={"scanned":true,"count":1}  scanned=2  已删=1  跳过=1
+DEL  dsh-sHFY5D  ok=True  own=False  idle=True  locks=0  条目=0
+SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
+```
+
+→ **启动路径（收硬杀/崩溃遗留）也验收通过**，且与关闭路径互补：关闭删"自己的"、启动删"别人的陈旧"。此后全机只剩一个 `dsh-<6位>` 根（本会话自己的活跃根），**残留归零**。
+
+- **日志可见性也已验**（v6.2 的修复）：同一次启动的实例日志里出现了
+  `[sandbox-sweep] 启动清扫: {"checked":30,"pending":0,"bootResidue":[],"results":[],"errors":[],"error":null,"temp":{"scanned":2,"others":{"scanned":true,"count":1},"lastInstance":false,"deleted":1,"failed":0,"skipped":1,"errors":[]}}`
+  —— 修之前（00:36 那次）因为没有工作区残留要擦，这一行根本不会打印，temp 的结果只能在台账里翻。
 - **顺带修掉一处日志缺口**：`启动清扫` 那行原先写在 `if (roots.length === 0) return summary;` **之后** → 没有工作区残留要擦时，temp 的结果只进台账、日志里看不到（本次实测就是这样）。现改为**总是打印**。
 
 ## Spike 结项状态（2026-09-26 更新）

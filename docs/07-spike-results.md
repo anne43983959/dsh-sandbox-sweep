@@ -797,7 +797,9 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 - 3 个空闲的带标签 temp 目录（`dsh-5chAMN` / `dsh-BJSEhH` / `dsh-iVhpYq`）已删除；正在使用中的 `dsh-sNSZk7`（本会话 `TEMP` 指向它）**未动**；
 - 删掉的 52 个空壳**确实进了回收站**（`$I` 53 条、创建于同一时刻）——插件的 `recycleDirs()` 是诚实的；
-- **教训 1（回收站）**：`pwsh`(7 / .NET Core) 的 `Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)` **不进回收站、直接永久删除**；插件的 `recycleDirs()` 用的是 `powershell.exe`(5.1) 才是真回收。判定方法：数 `C:\$Recycle.Bin\<SID>\$I*` 条数是否增加（本次手工删除时 53 → 53，故为永久删除）。**注意 `$R` 负载若是目录，用 `-File` 数会得 0**，别据此误判。
+- **教训 1（回收站：一次误判的更正）**：手工删除那 3 个目录落成了永久删除，我起初归因于"`pwsh` 7 的 .NET Core 版不支持回收站"——**随后被自己的实验推翻**：同一个 `workspace-write` 会话里，`powershell.exe`(5.1) 与 `pwsh`(7) 表现**完全一致**（都 `called-ok`、文件消失、`$I` 增量 0）；而**同一时刻、同一台机**，由插件**宿主进程**（文件沙箱之外）spawn 的 `powershell.exe` 产生了 **52 条合法 `$I`**（`recycleDirs()` 那次是**真回收**，时间戳与台账 #22 对得上；注意台账 `startedAt` 是 UTC，"15:40" 即本地 23:40）。→ **决定因素是"调用者是否在文件沙箱内"，不是 PowerShell 版本。**
+  判定只认 `$I` 条数（`-File` + `$I*` 过滤），且注意两个坑：① `desktop.ini` 会在回收站被清空后立刻生成，别当条目（本轮曾据此误判"多了 1 条"）；② `$R` 负载若是**目录**，用 `-File` 数会得 **0**，别据此断言"没进回收站"。
+  已把这条（含"30 秒判定当前会话能否真回收"的探测脚本）写进 `recycle-bin` 技能 **§1.1**，并投放到 3 个 home（sha256 一致）。
 - **教训 2（命名空间）**：临时区里的 `dsh-*` 不止一种——`dsh-<6位>` 是沙箱 temp 根（**会**带三件套），`dsh-spill-*` / `dsh-subprocess-*` / `dsh-ssh-uploads` 是别的用途（实测**不带**三件套）。按前缀模糊匹配会把不该动的目录圈进来；插件原来只认 `^dsh-[A-Za-z0-9]{6}$` 是对的。
 
 ## Spike 结项状态（2026-09-26 更新）

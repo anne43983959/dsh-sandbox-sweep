@@ -1,6 +1,6 @@
 # 06 · 实验环境登记（2026-09-26 19:05 核对）
 
-> ⚠️ **本文件是本机实验记录**：含绝对路径 / PID / 端口 / 版本目录等本机环境细节。
+> ⚠️ **本文件是本机实验记录**：含 PID / 版本目录等环境细节（实例/会话 ID、端口已打码，绝对路径用 `%APPDATA%` / `$DSH_HOME` 等占位符）。
 > 分享或发布前请按 `AGENT.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
 
 
@@ -8,9 +8,9 @@
 
 | 实例 id | 名称 | home | 状态 |
 |---|---|---|---|
-| `i-0e98ee89-…` | 0.1.5-rc.3 | `homes\0.1.5-rc.3` | **运行中** —— 当前 GUI `http://127.0.0.1:56778` |
-| `i-16bfaf0e-…` | 0.1.7-rc.1 | `homes\0.1.7-rc.1` | 未运行 |
-| **`i-8352a98d-…`** | **0.1.7-rc.2** | `homes\0.1.7-rc.2` | 19:02:22 拉起（:55785 就绪）→ **19:02:45 已停止（exit code: Some(1)）** |
+| `i-…` | 0.1.5-rc.3 | `homes\0.1.5-rc.3` | **运行中** —— 当前 GUI `http://127.0.0.1:<端口>` |
+| `i-…` | 0.1.7-rc.1 | `homes\0.1.7-rc.1` | 未运行 |
+| **`i-…`** | **0.1.7-rc.2** | `homes\0.1.7-rc.2` | 19:02:22 拉起（:<端口> 就绪）→ **19:02:45 已停止（exit code: Some(1)）** |
 
 > ⚠️ **本企划的会话当前运行在 0.1.5-rc.3 实例内**（`DSH_HOME = homes\0.1.5-rc.3`，GUI :56778）。
 > 开发与实测必须在 **0.1.7-rc.2 实例**内进行：跨实例没有进程内 API，我只能核对磁盘与登记状态。
@@ -22,7 +22,7 @@
 | 版本目录 | `versions\0.1.7-rc.2`，含 `@deepseek-ai/dsh-sandbox-windows-acl` **v0.1.7-rc.2** |
 | home | `homes\0.1.7-rc.2` —— **全新**：仅 profiles / sessions / storages / .anonymous-user-id / .credentials.yaml（无 skills、无 attachments） |
 | 第三方插件 | **未安装任何插件**；实例日志仅 83 字节（只有 `dsh web` 的 URL 行） |
-| 已建会话 | `session-25e10265-…`（`session.v4.jsonl.zstd`，19:02） |
+| 已建会话 | `session-…`（`session.v4.jsonl.zstd`，19:02） |
 | 登记工作区 | `%USERPROFILE%\Documents\deepseek-harness\default-workspace` |
 | 工作区状态 | **空目录（0 子项）且干净**：无 Low 标签、无 `(DENY)`、无能力 ACE |
 | 结论 | 该实例**尚未触发过任何 workspace-write 授权**，因此没有任何三件套残留 —— 理想的实验起点 |

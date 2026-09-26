@@ -1,6 +1,6 @@
 # 07 · 前置 Spike 结果（M0 阶段）
 
-> ⚠️ **本文件是本机实验记录**：含绝对路径 / PID / 端口 / 版本目录等本机环境细节。
+> ⚠️ **本文件是本机实验记录**：含 PID / 版本目录等环境细节（实例/会话 ID、端口已打码，绝对路径用 `%APPDATA%` / `$DSH_HOME` 等占位符）。
 > 分享或发布前请按 `AGENT.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
 
 
@@ -201,9 +201,9 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 启动器日志（`logs/latest.log`）：
 
 ```
-[20:19:33] [INFO] 收到停止实例 i-8352a98d-… 的请求
-[20:19:33] [INFO] 实例 i-8352a98d-… 已停止（exit code: Some(1)）      ← 启动器自己停 = 硬杀
-[20:22:49] [WARN] 实例 i-8352a98d-… 意外退出（exit code: Some(0)）    ← 我们点按钮 = 进程自行退出
+[20:19:33] [INFO] 收到停止实例 i-… 的请求
+[20:19:33] [INFO] 实例 i-… 已停止（exit code: Some(1)）      ← 启动器自己停 = 硬杀
+[20:22:49] [WARN] 实例 i-… 意外退出（exit code: Some(0)）    ← 我们点按钮 = 进程自行退出
 ```
 
 - **`Some(0)` 是本机历史上第一次优雅退出**：此前每一次停止都是 `Some(1)`（`TerminateProcess`）。

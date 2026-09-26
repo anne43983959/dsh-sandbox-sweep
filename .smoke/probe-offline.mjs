@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { peerHomes, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots } from "../lib/index.js";
+import { dirtyTempRoots, peerHomes, probeInstances, probeTempRoots, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, tempParents } from "../lib/index.js";
 
 const mine = process.argv[2];
 const ctx = { get: (name) => (name === "workspaceRegistry" ? { list: () => [{ path: mine }] } : undefined) };
@@ -74,6 +74,33 @@ console.log("homedir  = " + homedir());
 	check("C 提醒不要提交/外发", text.includes("不要提交") || text.includes("不要外发"));
 	check("C 列了四条红线", (text.match(/^\d\. /gm) || []).length >= 4);
 	rmSync(join(fakeHome, ".."), { recursive: true, force: true });
+}
+
+/* ---------- D：实例 temp 根扫描（把 TEMP/LOCALAPPDATA/USERPROFILE 重定向到假目录） ---------- */
+{
+	const fakeRoot = new URL("./faketemp/", import.meta.url).pathname.replace(/^\//, "");
+	rmSync(fakeRoot, { recursive: true, force: true });
+	const fakeTemp = join(fakeRoot, "tmp");
+	const fakeLocal = join(fakeRoot, "local");
+	const fakeUser = join(fakeRoot, "user");
+	mkdirSync(join(fakeTemp, "dsh-abc123"), { recursive: true });
+	mkdirSync(join(fakeTemp, "dsh-DEF456"), { recursive: true });
+	mkdirSync(join(fakeTemp, "not-a-dsh-dir"), { recursive: true });
+	mkdirSync(join(fakeTemp, "dsh-toolong-name"), { recursive: true });
+	mkdirSync(fakeLocal, { recursive: true });
+	mkdirSync(fakeUser, { recursive: true });
+	process.env.TEMP = fakeTemp;
+	process.env.TMP = fakeTemp;
+	process.env.LOCALAPPDATA = fakeLocal;
+	process.env.USERPROFILE = fakeUser;
+
+	const parents = await tempParents();
+	check("D 候选 temp 父目录跟随 TEMP", parents.some((p) => canon(p) === canon(fakeTemp)), JSON.stringify(parents));
+	const scan = await probeTempRoots(true);
+	check("D 只认 dsh-<6位> 命名（忽略 not-a-dsh-dir / 过长名）", scan.scanned === 2, "scanned=" + scan.scanned);
+	check("D 干净目录不算 dirty", scan.roots.every((r) => r.dirty === false));
+	check("D dirtyTempRoots 为空", (await dirtyTempRoots(true)).length === 0);
+	rmSync(fakeRoot, { recursive: true, force: true });
 }
 
 console.log(bad === 0 ? "PROBE OK" : bad + " FAILURES");

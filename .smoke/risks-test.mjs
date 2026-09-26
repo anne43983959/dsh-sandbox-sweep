@@ -47,13 +47,18 @@ const cases = [
 
 	/* ---- 兜底：没枚举到 / 报告不完整的情况，一律弹窗，绝不静默 ---- */
 	["兜底 · 响应不是对象 → shape", null, "sweep", true, (v) => v.noop === false && kinds(v) === "shape"],
-	["兜底 · workspaces 缺字段（列表也能空）→ shape，且不空操作", { probeVersion: 3, instancesScanned: true, sessions: [], otherInstances: [], errors: [] }, "sweep", true, (v) => v.noop === false && kinds(v) === "shape"],
+	["兜底 · workspaces 缺字段（列表也能空）→ shape，且不空操作", { probeVersion: Number(minMatch[1]), instancesScanned: true, sessions: [], otherInstances: [], errors: [] }, "sweep", true, (v) => v.noop === false && kinds(v) === "shape"],
 	["兜底 · workspaces 不是数组 → shape", { ...base, workspaces: "oops" }, "sweep", true, (v) => v.noop === false && kinds(v) === "shape"],
 	["兜底 · 一个工作区都没有 → noroot（不许说「无需清理」）", { ...base, workspaces: [] }, "sweep", true, (v) => v.noop === false && kinds(v) === "noroot"],
 	["兜底 · 宿主报告版本更旧 → stale", { ...base, probeVersion: 1 }, "sweep", true, (v) => v.noop === false && kinds(v) === "stale"],
 	["兜底 · 报告无版本号（多半没重启）→ stale", { ...base, probeVersion: undefined }, "sweep", true, (v) => v.noop === false && kinds(v) === "stale"],
 	["兜底 · 报告自带错误项 → diag", { ...base, errors: ["会话枚举失败: x"] }, "sweep", true, (v) => v.noop === false && kinds(v) === "diag"],
-	["兜底 · sessions 缺字段 → shape", { probeVersion: 3, workspaces: [clean], otherInstances: [], errors: [] }, "close", true, (v) => v.noop === false && kinds(v) === "shape"],
+	["兜底 · sessions 缺字段 → shape", { probeVersion: Number(minMatch[1]), workspaces: [clean], otherInstances: [], errors: [] }, "close", true, (v) => v.noop === false && kinds(v) === "shape"],
+
+	/* ---- temp（实例临时区）也参与空操作判定 ---- */
+	["temp · 工作区干净但临时区带痕迹 → 不是空操作", { ...base, tempRoots: { dirty: 3, scanned: 128 } }, "sweep", true, (v) => v.noop === false && kinds(v) === ""],
+	["temp · 临时区也干净 → 空操作", { ...base, tempRoots: { dirty: 0, scanned: 128 } }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
+	["temp · 没有 tempRoots 字段（旧宿主）→ 按 0 处理", { ...base, tempRoots: undefined }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
 ];
 
 let bad = 0;

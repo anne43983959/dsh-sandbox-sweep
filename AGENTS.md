@@ -40,12 +40,14 @@
 |---|---|
 | 宿主↔客户端通信 | `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`；**path 必须带 `/api` 前缀**（`endpointFromPath` 要求 `startsWith('/api/')`），否则注册报 `invalid exact Fetch route` |
 | 路由 | `POST /api/sandbox-sweep/{probe,erase,revoke,stop-sessions,close}`；关闭开始后一律 409 |
-| 报告契约版本 | 宿主 `PROBE_VERSION` ↔ 客户端 `PROBE_MIN`：**改字段结构就两边同步 +1**，不匹配时客户端按风险弹窗 |
+| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 4**）↔ 客户端 `PROBE_MIN`（**当前 4**）：**改字段结构就两边同步 +1**（v4 = 报告新增 `tempRoots`），不匹配时客户端按风险弹窗 |
 | 客户端 bundle | 手写、无打包器：`window.__ModuleLoader__.load({ id, factory })`；只能 `require` 平台模块表里的 9 个 id（`react`、`react/jsx-runtime`、`react-dom`…） |
 | 擦除配方（顺序不可换） | ① `AclWriteGrant.create(workspaceWriteSid(root)).add(root,false).dispose()`（撤能力 ACE + 清低标签）→ ② `icacls <root> /remove:d *S-1-1-0`（去 world 删除拒绝）→ ③ 回读校验 `residue=[]`；**全部根级、不加 `/T`** |
 | 明确无效的做法 | `icacls /remove:g "*S-1-4-…"` 撤能力 ACE（实测 `processed 0 files`） |
 | 跨实例判定 | 租约 `$DSH_HOME/sandbox-sweep/instance.json`（60 s 心跳）＋各 home 的 `storages/workspace.json`；探查范围 = `homes/<版本>` 兄弟 home ∪ **默认 `~/.dsh`**；租约只认进程存活 |
-| 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦）；**启动 3 s 后自动补擦 pending** |
+| 擦除范围 | **注册工作区根 ∪ 实例 temp 根**（名字匹配 `^dsh-[A-Za-z0-9]{6}$` 且探测到痕迹的目录；名字不匹配的一律不碰） |
+| 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦 + `trigger`）；**启动 3 s 后跑启动清扫**：① 硬杀遗留（本进程还没授权过、却仍带三件套的根）② 台账 `pending` ③ temp 上的痕迹（**只擦标签、不删目录**） |
+| temp 空壳回收 | **只在用户点击「清理」时**把"已擦干净的空目录"送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
 
 ## 4. 交互规则（用户定的，别改回去）
 
@@ -58,7 +60,7 @@
 
 ```powershell
 node --check lib/index.js ; node --check lib/client.js
-node .smoke/risks-test.mjs     # 期望 ALL OK        —— 21 例风险/兜底判定
+node .smoke/risks-test.mjs     # 期望 ALL OK        —— 24 例风险/兜底判定（含 temp 影响空操作）
 node .smoke/labels-test.mjs    # 期望 LABELS OK     —— 全量文案键中英齐全
 node .smoke/boot-test.mjs      # 期望 DIALOG OK / BOOT OK —— bundle 装载 + 弹窗真渲染
 $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区根>"   # 期望 PROBE OK

@@ -729,6 +729,32 @@ ctx.inject(["systemPrompt"], (scope) => {
 5. 与其跨区提权，**先问一句目标该放哪**——用户这次的意图本来就是「放在工作区根里的子目录」，那样根本不需要提权；
 6. `exit=0` 不等于写对了：**必须回读**（这次正是回读才发现 4 个文件与基线不符）。
 
+## M10 · temp 溢出 + 硬杀遗留：两处兜底（2026-09-26）
+
+### 起因（实测数据）
+
+- `dsh-*` temp 目录共 **128 个**，其中 **10 个带 LOW+DENY**，创建时间**全部落在 09-26 20:10–21:48**（rc.2 反复启停那段），且**全是 0 文件空壳**；
+- rc.2 台账 20 条记录 `pending` **全为空** → 历次擦除都通过了校验；但**硬杀路径不会留下任何 pending**，所以「上次被强杀留下的三件套」原 `startupSweep` 不会清（它只补擦「擦过但没通过校验」的根）。
+
+### 改动
+
+| # | 改动 | 关键点 |
+|---|---|---|
+| 1 | **启动清扫扩成三类** | ① **硬杀遗留**：本进程刚起、**还没授权过任何根**，此时注册工作区根若仍带三件套 → 一定是上一轮留下的 → 擦；② 台账 `pending` 补擦（原有）；③ **temp 痕迹**（只擦标签） |
+| 2 | **temp 根纳入清理** | 新增 `probeTempRoots()`：候选父目录 = `os.tmpdir()` ∪ `TEMP`/`TMP` ∪ `%LOCALAPPDATA%\Temp` ∪ `%USERPROFILE%\OneDrive`（本机 temp 被 OneDrive 重定向，实测）；**只认 `^dsh-[A-Za-z0-9]{6}$`** 且探测到痕迹的目录，名字不匹配的一律不碰；8 路并发 + 30 s 缓存 |
+| 3 | **空壳回收（仅用户主动）** | 点「清理」时把「已擦干净的空目录」送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
+| 4 | 报告新增 `tempRoots` | `{parents, scanned, dirty, emptyShells, sample}`；`PROBE_VERSION` / `PROBE_MIN` **3 → 4** |
+| 5 | 空操作判定收紧 | `noop` 现在还要求 `tempRoots.dirty === 0`——否则「工作区干净」会让清理短路，temp 痕迹永远清不掉 |
+
+### 验证
+
+- 四套离线自检全绿：`ALL OK`（**24 例**，新增 3 例 temp 影响空操作）、`LABELS OK`、`DIALOG OK / BOOT OK`、`PROBE OK`（新增 4 项 temp 断言：候选父目录跟随 `TEMP`、只认 `dsh-<6位>`、干净目录不算 dirty、`dirtyTempRoots` 为空）；
+- 断言用 `TEMP` / `LOCALAPPDATA` / `USERPROFILE` 重定向到假目录，**不碰真实临时区**；
+- 顺带修掉两处**把版本号写死**的测试用例（`probeVersion: 3` → `Number(minMatch[1])`），它们在新 `PROBE_MIN=4` 下会误报 `stale`。
+
+### 尚未实测（需要重启 rc.2 才算数）
+
+- 真实环境里「启动清扫擦掉那 10 个带标签 temp」与「点清理回收空壳」还没跑过（宿主改动要重启装载）。预期首次启动日志出现 `[sandbox-sweep] 启动清扫: {..."tempRoots":[…]}`。
 ## Spike 结项状态（2026-09-26 更新）
 
 | Spike | 状态 | 落地方式 / 结论文档 |

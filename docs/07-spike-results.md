@@ -898,6 +898,7 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 - **日志可见性也已验**（v6.2 的修复）：同一次启动的实例日志里出现了
   `[sandbox-sweep] 启动清扫: {"checked":30,"pending":0,"bootResidue":[],"results":[],"errors":[],"error":null,"temp":{"scanned":2,"others":{"scanned":true,"count":1},"lastInstance":false,"deleted":1,"failed":0,"skipped":1,"errors":[]}}`
   —— 修之前（00:36 那次）因为没有工作区残留要擦，这一行根本不会打印，temp 的结果只能在台账里翻。
+- **顺带修掉一处台账命名**：关闭流程里的擦除步骤原先写 `trigger: "user"`（`eraseRoots` 的默认值）→ 与"用户点「清理」"混在一起，看台账会误判成用户点过按钮（本次排查就被绕了一下）。已改为 `"close"`。**同时它也是 T15 仍未验的旁证**：台账里从来没有 `temp-user` 条目，说明三处入口中"点「清理」"这条还没被真实点过（其逻辑由 `probe-offline` E 段覆盖）。
 - **顺带修掉一处日志缺口**：`启动清扫` 那行原先写在 `if (roots.length === 0) return summary;` **之后** → 没有工作区残留要擦时，temp 的结果只进台账、日志里看不到（本次实测就是这样）。现改为**总是打印**。
 
 ## Spike 结项状态（2026-09-26 更新）

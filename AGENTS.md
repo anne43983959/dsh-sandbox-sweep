@@ -1,4 +1,4 @@
-# AGENT.md · 给 agent 的上手说明（dsh-sandbox-sweep）
+# AGENTS.md · 给 agent 的上手说明（dsh-sandbox-sweep）
 
 > 面向：**要读、改、修这个插件的 agent**（含本机其他 DSH 实例里的 agent）。
 > 用户向自述在 [`README.md`](README.md)；证据与实测记录在 [`docs/`](docs/)；**本机专属路径与实例信息**在 `SOURCE.local.md`（**不随 Git 追踪**，见文末）。
@@ -27,7 +27,7 @@
 | `lib/client.js` | **客户端半（真源码）**：手写 bundle（`window.__ModuleLoader__.load` 契约）、两个按钮、风险判定 `computeRisks`、弹窗 / 气泡 / 原始报告块 | ✅ 主战场 |
 | `assets/sandbox-sweep.md` | 随包分发的**技能**（给模型看的症状→处置说明） | ✅ 可改 |
 | `.smoke/*.mjs` | **离线自检**（4 套，见 §5）；开发用，不随包发布 | ✅ 加用例 |
-| `README.md` / `AGENT.md` / `docs/01..07` / `PLAN.md` | 自述 / 上手 / 规格 / 事实 / 证据 / 企划 | ✅ 改完同步 |
+| `README.md` / `AGENTS.md` / `docs/01..07` / `PLAN.md` | 自述 / 上手 / 规格 / 事实 / 证据 / 企划 | ✅ 改完同步 |
 | `src/**` | **早期 TypeScript 骨架**（只有类型与 TODO） | ❌ **不是运行时实现，别改** |
 | `package.json` | `type: module`、`main: lib/index.js`、`exports {".","./client","./package.json"}`、`dsh.client.platform="web"`、`files:["lib","assets"]` | ⚠️ 小心 |
 | `SOURCE.local.md` | **本机专属**源码定位（绝对路径、安装链接、红线） | 🚫 **不追踪、不外发** |
@@ -96,7 +96,7 @@ $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区�
 | 文件 | 用途 |
 |---|---|
 | `README.md` | 用户向自述：按钮做什么、安装即知悉的影响、什么时候会/不会打扰你 |
-| `AGENT.md` | 本文件：agent 上手、契约速查、自检与红线 |
+| `AGENTS.md` | 本文件：agent 上手、契约速查、自检与红线 |
 | `PLAN.md` | 企划与里程碑（含决策表 D1–D5） |
 | `docs/01-facts.md` | 事实基线：三件套机制、能力边界、启动器行为、插件机制（**本机实测**） |
 | `docs/02-ux-and-flows.md` | UI 规格与状态机（**注意文首"实施现状"横幅：交互已由 M6.1/M6.3 取代**） |
@@ -106,7 +106,7 @@ $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区�
 | `docs/06-lab-inventory.md` | 实验环境登记（本机各实例/版本） |
 | `docs/07-spike-results.md` | **证据日志**：S1–S9、M0–M7、实测数字、回归与修正（最长、最有用） |
 
-> `docs/01,05,06,07` 是**本机实验记录**（含绝对路径、PID、端口、版本目录），分享前请按 §6.6 脱敏；`README.md`、`AGENT.md`、`PLAN.md`、`docs/02–04` 不含个人信息。
+> `docs/01,05,06,07` 是**本机实验记录**（含绝对路径、PID、端口、版本目录），分享前请按 §6.6 脱敏；`README.md`、`AGENTS.md`、`PLAN.md`、`docs/02–04` 不含个人信息。
 
 ## 9. 找不到源码时
 

@@ -1,7 +1,7 @@
 # 07 · 前置 Spike 结果（M0 阶段）
 
 > ⚠️ **本文件是本机实验记录**：含 PID / 版本目录等环境细节（实例/会话 ID、端口已打码，绝对路径用 `%APPDATA%` / `$DSH_HOME` 等占位符）。
-> 分享或发布前请按 `AGENT.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
+> 分享或发布前请按 `AGENTS.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
 
 
 > 环境：本会话运行在 **0.1.5-rc.3** 实例（工作区 = 启动器数据目录，只写能力 ACE，不会污染标签）；
@@ -167,7 +167,7 @@ node "<...>\versions\0.1.7-rc.2\node_modules\@deepseek-ai\dsh\lib\bin.js" plugin
 
    | 目录 | 创建时间 | 递归条目 | 结论 |
    |---|---|---|---|
-   | `Documents\deepseek-harness\默认工作区` | 09-24 14:08 | **2363**（office-lab / office-workbench / staged-skills / AGENT.md…） | 0.1.7-rc.1 生成技能的目录，**完好未动** |
+   | `Documents\deepseek-harness\默认工作区` | 09-24 14:08 | **2363**（office-lab / office-workbench / staged-skills / AGENT.md…（当时名）） | 0.1.7-rc.1 生成技能的目录，**完好未动** |
    | `Documents\deepseek-harness\default-workspace` | **09-26 19:02** | **0** | 创建 rc.2 实例时新建的空目录，**从来没有内容** |
 
    本插件的擦除只做 `icacls /remove:d`、撤销能力 ACE 与清除标签，**不含任何删除文件的代码路径**（`removeOwnedTempDirs` 尚未实现）。
@@ -638,7 +638,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 
 ### 需求
 1. 给**本机其他实例**留一个独立 md：插件出问题要改代码时，能顺着它找到源码；**该文件不受 Git 追踪**；
-2. 重新检查并完善自述（含新增 `AGENT.md`），让其他 agent 能快速上手；重点排查**高度依赖本机环境的描述**与**个人信息泄露风险**。
+2. 重新检查并完善自述（含新增 `AGENTS.md`），让其他 agent 能快速上手；重点排查**高度依赖本机环境的描述**与**个人信息泄露风险**。
 
 ### 三个文件，各司其职
 
@@ -646,7 +646,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 |---|---|---|
 | `SOURCE.local.md`（仓库根） | 🚫 **已加入 `.gitignore`** | 本机完整定位：源码绝对路径、安装符号链接、home/版本布局、四套自检命令、六条红线；写给"本机其他实例的 agent" |
 | `$DSH_HOME\sandbox-sweep\SOURCE.md` | 🚫 在 home 里，天然不入库 | 插件**启动 2.5 s 后自动写入**（`publishSourceNote()`，可覆盖）：版本、home、源码目录、**本 profile 的安装位置**（只列真实存在的）、改动生效方式、自检命令、四条红线 |
-| `AGENT.md`（仓库根，新增） | ✅ 追踪 | agent 上手：真源码约定（`lib/` 是手写源码、`src/` 是骨架）、核心契约速查（`/api` 前缀、座位、`PROBE_VERSION↔PROBE_MIN`、擦除配方与顺序）、交互规则、自检清单、红线、安装/卸载、文档地图、找不到源码时的三条路径 |
+| `AGENTS.md`（仓库根，新增） | ✅ 追踪 | agent 上手：真源码约定（`lib/` 是手写源码、`src/` 是骨架）、核心契约速查（`/api` 前缀、座位、`PROBE_VERSION↔PROBE_MIN`、擦除配方与顺序）、交互规则、自检清单、红线、安装/卸载、文档地图、找不到源码时的三条路径 |
 
 > 顺带修掉一个**真隐患**：`.gitignore` 里原来有 `lib/`（那会儿它是构建产物）。现在 `lib/index.js` + `lib/client.js` 是**手写源码**——若不改，一旦 `git init` 提交，真正的实现会被整体忽略、只剩 `src/` 骨架。已移出忽略列表并在文件里写明原因。
 
@@ -662,8 +662,8 @@ ctx.inject(["systemPrompt"], (scope) => {
 | 用户名 / `C:\Users\<用户名>` 绝对路径 | 有 4 处（`docs/05`、`docs/06`、`docs/07`×2）→ 已改为 `%APPDATA%` / `%USERPROFILE%`；**现仅存于 `SOURCE.local.md`（未追踪）** |
 | 邮箱 / 凭据 / 令牌 / Bearer | 0 命中（`.credentials.yaml` 只在 `docs/05` 作为"不读取"的对象出现，无内容） |
 | 个人目录名（`资源管理器` 等） | 1 处是误报（指 Windows 文件资源管理器）；`D:` 私有路径 0 命中 |
-| 本机实验记录（绝对路径 / PID / 端口 / 版本目录） | `docs/01,05,06,07` 保留（那是证据），但**文首已加脱敏横幅**，指向 `AGENT.md` §6 |
-| 报告/文档里的路径占位符 | `README.md`、`AGENT.md`、`PLAN.md`、`docs/02–04` 已无本机绝对路径 |
+| 本机实验记录（绝对路径 / PID / 端口 / 版本目录） | `docs/01,05,06,07` 保留（那是证据），但**文首已加脱敏横幅**，指向 `AGENTS.md` §6 |
+| 报告/文档里的路径占位符 | `README.md`、`AGENTS.md`、`PLAN.md`、`docs/02–04` 已无本机绝对路径 |
 
 ### 验证
 `.smoke/probe-offline.mjs` 增加 C 组 4 项断言（写出 `SOURCE.md`、写明源码目录、提醒不要外发、含四条红线）→ 全套 **15 项全绿**；四套离线自检仍全绿。

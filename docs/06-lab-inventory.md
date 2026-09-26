@@ -1,7 +1,7 @@
 # 06 · 实验环境登记（2026-09-26 19:05 核对）
 
 > ⚠️ **本文件是本机实验记录**：含 PID / 版本目录等环境细节（实例/会话 ID、端口已打码，绝对路径用 `%APPDATA%` / `$DSH_HOME` 等占位符）。
-> 分享或发布前请按 `AGENT.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
+> 分享或发布前请按 `AGENTS.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
 
 
 ## 1. 启动器托管的实例

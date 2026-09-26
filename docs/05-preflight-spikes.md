@@ -1,7 +1,7 @@
 # 05 · 开发前准备（最后一公里）
 
 > ⚠️ **本文件是本机实验记录**：含 PID / 版本目录等环境细节（实例/会话 ID、端口已打码，绝对路径用 `%APPDATA%` / `$DSH_HOME` 等占位符）。
-> 分享或发布前请按 `AGENT.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
+> 分享或发布前请按 `AGENTS.md` §6 脱敏；本机专属的完整信息在未追踪的 `SOURCE.local.md` 与各 home 的 `sandbox-sweep/SOURCE.md`。
 
 
 ## 0. 环境基线（本机实测）
@@ -34,7 +34,7 @@
 - **TypeScript + 打包器**：客户端半需要产出单文件 `lib/client.js`；宿主半产出 `lib/index.js`。
 - **类型来源**：`versions\0.1.7-rc.2\node_modules\.pnpm\@deepseek-ai+dsh-client-ui-slots\…\lib\types\index.d.ts`（51 KB，槽位 API 的权威签名）与各 `dsh-client-ui-*` 的 `.d.ts`；**以其为准，不靠猜**。
 - **冻结基线**：把 0.1.7-rc.2 的相关 `.d.ts` 复制进 `types/vendor/` 并记录来源版本，避免升级后静默漂移。
-- **实验目录约定**：所有实验产物放 `.sandbox/sweep-<时间戳>/`，用后清理（本目录 `AGENT.md` §4 的约定）。
+- **实验目录约定**：所有实验产物放 `.sandbox/sweep-<时间戳>/`，用后清理（本目录 `AGENTS.md` §4 的约定）。
 
 ## 3. 安装与回滚（Spike S9 定稿，先按此预案）
 
@@ -44,7 +44,7 @@
 4. **回滚**：插件页禁用该 bundle（写入 profile 的 `cordis.patch.yml`）→ 或卸载 → 必要时手工移除该行并重启实例。
 5. **不假设**：安装/卸载是否会重启实例、是否影响正在运行的会话，必须在 S9 里实测记录。
 
-## 4. 合规约束（本目录 `AGENT.md`）
+## 4. 合规约束（本目录 `AGENTS.md`）
 
 - 写入限制在 `.sandbox/`（本企划目录为显式例外：用户指示在根目录建项目文件夹）。
 - 删除一律走回收站；禁止对 `homes/`、`versions/`、`profiles/`、`sessions/`、`storages/` 等做递归删除。

@@ -68,4 +68,4 @@ CLICK → CHECK(检查) → [裁定阻塞项] → REVOKE(逐会话切只读) →
 
 - 事实与实测数据：`docs/01-facts.md`（全部来自本机实测，含证据等级标注）
 - 既有技能 `low-integrity-repair` 的三处结论已同步修正（`icacls /remove:g` 无效、`/T` 非必要且更贵、"删不掉"的因果需条件化）——**2026-09-26 经用户批准后执行**，见 `docs/07-spike-results.md`。
-- 自述体系：`README.md`（用户向）、`AGENT.md`（agent 上手）、`SOURCE.local.md`（本机定位，**不追踪**）+ 插件启动时写到 `$DSH_HOME/sandbox-sweep/SOURCE.md` 的概要。
+- 自述体系：`README.md`（用户向）、`AGENTS.md`（agent 上手）、`SOURCE.local.md`（本机定位，**不追踪**）+ 插件启动时写到 `$DSH_HOME/sandbox-sweep/SOURCE.md` 的概要。

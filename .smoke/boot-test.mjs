@@ -113,6 +113,7 @@ hookSlots.set("root/SandboxSweepActions#0", {
 		],
 		otherInstances: [{ pid: 9, version: "0.1.5-rc.3", sharesWorkspace: null, verified: false, risk: "no" }],
 		errors: ["会话枚举失败: x"], instancesScanned: false,
+		tempRoots: { parents: ["C:\\Temp"], scanned: 3, selfLifetime: 1, idle: 2, locked: 1, fresh: 0, deletable: 2, othersScanned: true, othersCount: 0, lastInstance: true, sample: [] },
 	},
 	risks: [
 		{ kind: "work", title: "riskWorkT", desc: "riskWorkD", detail: "turn" },

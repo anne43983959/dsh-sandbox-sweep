@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { peerHomes, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots } from "../lib/index.js";
+import { peerHomes, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, scanTempRoots } from "../lib/index.js";
 
 const mine = process.argv[2];
 const ctx = { get: (name) => (name === "workspaceRegistry" ? { list: () => [{ path: mine }] } : undefined) };
@@ -80,6 +80,40 @@ console.log("homedir  = " + homedir());
 	check("C 提醒不要提交/外发", text.includes("不要提交") || text.includes("不要外发"));
 	check("C 列了四条红线", (text.match(/^\d\. /gm) || []).length >= 4);
 	rmSync(join(fakeHome, ".."), { recursive: true, force: true });
+}
+
+/* ---------- D：实例 temp 根扫描（把 TEMP/LOCALAPPDATA/USERPROFILE 重定向到假目录；只读，不碰真实临时区） ---------- */
+{
+	const fakeRoot = new URL("./faketemp/", import.meta.url).pathname.replace(/^\//, "");
+	rmSync(fakeRoot, { recursive: true, force: true });
+	const fakeTemp = join(fakeRoot, "tmp");
+	mkdirSync(join(fakeTemp, "dsh-abc123"), { recursive: true });
+	mkdirSync(join(fakeTemp, "dsh-DEF456"), { recursive: true });
+	writeFileSync(join(fakeTemp, "dsh-DEF456", "aa.lock"), "x");
+	mkdirSync(join(fakeTemp, "dsh-spill-zzz"), { recursive: true });
+	mkdirSync(join(fakeTemp, "dsh-subprocess-zz"), { recursive: true });
+	mkdirSync(join(fakeTemp, "not-a-dsh-dir"), { recursive: true });
+	mkdirSync(join(fakeTemp, "dsh-toolong-name"), { recursive: true });
+	process.env.TEMP = fakeTemp;
+	process.env.TMP = fakeTemp;
+	process.env.LOCALAPPDATA = join(fakeRoot, "local");
+	process.env.USERPROFILE = join(fakeRoot, "user");
+	mkdirSync(process.env.USERPROFILE, { recursive: true });
+
+	const inv = await scanTempRoots(true);
+	check("D 候选父目录跟随 TEMP", inv.parents.some((p) => canon(p) === canon(fakeTemp)), JSON.stringify(inv.parents));
+	check("D 只认 dsh-<6位>（spill / subprocess / 过长名都不碰）", inv.scanned === 2, "scanned=" + inv.scanned);
+	const locked = inv.roots.find((r) => r.root.endsWith("dsh-DEF456"));
+	check("D 认出 .lock（占用信号）", Boolean(locked) && locked.locks === 1, JSON.stringify(locked && locked.locks));
+	check("D 刚建的目录不算闲置", inv.roots.every((r) => r.idle === false));
+	const fresh = inv.roots.find((r) => r.root.endsWith("dsh-abc123"));
+	const past = new Date(Date.now() - 20 * 60 * 1000);
+	utimesSync(fresh.root, past, past);
+	rmSync(join(fakeTemp, "dsh-DEF456", "aa.lock"));
+	const inv2 = await scanTempRoots(true);
+	const aged = inv2.roots.find((r) => r.root.endsWith("dsh-abc123"));
+	check("D 闲置 ≥10 分钟 → idle（分层清理的依据）", Boolean(aged) && aged.idle === true, JSON.stringify(aged && { idle: aged.idle }));
+	rmSync(fakeRoot, { recursive: true, force: true });
 }
 
 console.log(bad === 0 ? "PROBE OK" : bad + " FAILURES");

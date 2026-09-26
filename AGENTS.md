@@ -11,6 +11,7 @@
 - **不做外挂**：无用户脚本、无书签、无 DOM 注入、不改 DSH 源码；只以插件包形式安装（支持本地绝对路径安装）。
 - **界面在哪**：侧栏座位 `sidebar.footer.action`（list 型）。**不是**"新会话按钮上方"——那个按钮由外壳硬编码、上方没有可用座位。
 - **什么时候真的会动东西**：工作区**本来就没有痕迹**时「清理」是**空操作**（只弹气泡）；有痕迹才走"终止工作 → 权限回收（会话切只读）→ 擦除 → 校验"。
+- **还会顺手清临时区**：DSH 给每个「会话 × 工作区」在 `%TEMP%` 下建一个 `dsh-<6位>` 临时根（`dsh-sandbox-local` 的 `mkdtempSync`），正常 dispose 时它自己会删；**硬杀 / 崩溃 / dispose 失败留下的**由本插件在**启动与关闭时直接删除**（分层规则见 §3，**不走回收站**）。
 - **有风险才弹窗**；没枚举到的情况一律**按风险弹窗**，并在弹窗底部给出**可复制的原始自检报告**（详见 §4）。
 
 ## 1.5 目录约定（本机）
@@ -40,14 +41,15 @@
 |---|---|
 | 宿主↔客户端通信 | `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`；**path 必须带 `/api` 前缀**（`endpointFromPath` 要求 `startsWith('/api/')`），否则注册报 `invalid exact Fetch route` |
 | 路由 | `POST /api/sandbox-sweep/{probe,erase,revoke,stop-sessions,close}`；关闭开始后一律 409 |
-| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 5**）↔ 客户端 `PROBE_MIN`（**当前 5**）：**改字段结构就两边同步 +1**（v4 加过 `tempRoots`，**v5 又撤掉**——见 docs/07 M11），不匹配时客户端按风险弹窗 |
+| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 6**）↔ 客户端 `PROBE_MIN`（**当前 6**）：**改字段结构就两边同步 +1**（v4 加 `tempRoots` → v5 撤掉 → **v6 以"分层删除清单"的语义加回**，见 docs/07 M11/M12），不匹配时客户端按风险弹窗 |
 | 客户端 bundle | 手写、无打包器：`window.__ModuleLoader__.load({ id, factory })`；只能 `require` 平台模块表里的 9 个 id（`react`、`react/jsx-runtime`、`react-dom`…） |
 | 擦除配方（顺序不可换，**只对注册工作区根**） | ① `AclWriteGrant.create(workspaceWriteSid(root)).add(root,false).dispose()`（撤能力 ACE + 清低标签）→ ② `icacls <root> /remove:d *S-1-1-0`（去 world 删除拒绝）→ ③ 回读校验 `residue=[]`；**全部根级、不加 `/T`**。⚠️ **SID 必须与目标上真实存在的那个一致**：temp 目录上写的是 `tempWriteSid`，拿 `workspaceWriteSid` 去撤不是撤销而是**授权**（实测会给目录加上低标签且不收敛，见 docs/07 M11） |
 | 明确无效的做法 | `icacls /remove:g "*S-1-4-…"` 撤能力 ACE（实测 `processed 0 files`） |
 | 跨实例判定 | 租约 `$DSH_HOME/sandbox-sweep/instance.json`（60 s 心跳）＋各 home 的 `storages/workspace.json`；探查范围 = `homes/<版本>` 兄弟 home ∪ **默认 `~/.dsh`**；租约只认进程存活 |
-| 擦除范围 | **只有注册工作区根**。v5 起**不再处理实例 temp**（`%TEMP%`/OneDrive 下的 `dsh-<6位>`）：原先用错 SID，擦不干净还会加重痕迹；评估确认这些残留不挡删除、不影响日常使用，故整块回退（docs/07 M11） |
-| 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦 + `trigger`）；**启动 3 s 后跑启动清扫**：① 硬杀遗留（本进程还没授权过、却仍带三件套的根）② 台账 `pending` 补擦（**路径已不存在的条目跳过**） |
-| 不删任何目录 | 插件**从不删除**目录或文件：只撤销根上的三件套。v5 起连 temp 空壳回收也一并撤销（那条路径删过目录，且 `pwsh` 下的同名 API 会**永久删除**——教训见 docs/07 M11） |
+| 擦除范围（ACL） | **只有注册工作区根**：`AclWriteGrant` 撤销**必须 SID 匹配**——工作区根用 `workspaceWriteSid`，temp 根上写的是 `tempWriteSid`，拿错 SID 不是撤销而是**授权**（v5 因此整块回退擦除，见 docs/07 M11） |
+| temp 清理（v6，**删除而非擦除**） | 只碰严格 `^dsh-[A-Za-z0-9]{6}$`（`dsh-spill-*`/`dsh-subprocess-*`/`dsh-ssh-uploads` 一律不碰）。**低风险** = 无 `.lock` ∧ 闲置 ≥10 分钟 → 任何阶段都删；**可能被占用** = 有 `.lock` 或刚被碰过 → **仅当"自己是最后一个实例"**（实例扫描**成功**且 0 个）才删；扫描失败 ⇒ 只按低风险处理。**直接删除、不走回收站** |
+| 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦 + `trigger`，temp 条目 trigger 为 `temp-boot`/`temp-close`/`temp-user`）＋ `sandbox-sweep/temp-baseline.json`（本实例启动时已存在的 temp 根 → 用来认"本实例生命周期内新出现的"）；**启动 3 s 后跑启动清扫**：① 硬杀遗留（本进程还没授权过、却仍带三件套的根）② 台账 `pending` 补擦（**路径已不存在的条目跳过**）③ **temp 分层删除（静默：只写台账与日志）** |
+| 删除动作 | 插件**会删目录，但只删实例 temp 根**（严格命名 + 分层判据），从不碰工作区里的任何文件；关闭链里 `closeInstance` 的 temp 步骤排在**最后**（甲：报告里排第一、执行放最后——本实例的关闭链自己还要用 TEMP）。删除失败即放弃（`EBUSY`/`EPERM`/`EACCES` = 还有人在用），不做部分强删 |
 
 ## 4. 交互规则（用户定的，别改回去）
 
@@ -60,7 +62,7 @@
 
 ```powershell
 node --check lib/index.js ; node --check lib/client.js
-node .smoke/risks-test.mjs     # 期望 ALL OK        —— 21 例风险/兜底判定
+node .smoke/risks-test.mjs     # 期望 ALL OK        —— 24 例风险/兜底判定
 node .smoke/labels-test.mjs    # 期望 LABELS OK     —— 全量文案键中英齐全
 node .smoke/boot-test.mjs      # 期望 DIALOG OK / BOOT OK —— bundle 装载 + 弹窗真渲染
 $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区根>"   # 期望 PROBE OK

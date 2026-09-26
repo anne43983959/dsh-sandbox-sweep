@@ -802,6 +802,45 @@ ctx.inject(["systemPrompt"], (scope) => {
   已把这条（含"30 秒判定当前会话能否真回收"的探测脚本）写进 `recycle-bin` 技能 **§1.1**，并投放到 3 个 home（sha256 一致）。
 - **教训 2（命名空间）**：临时区里的 `dsh-*` 不止一种——`dsh-<6位>` 是沙箱 temp 根（**会**带三件套），`dsh-spill-*` / `dsh-subprocess-*` / `dsh-ssh-uploads` 是别的用途（实测**不带**三件套）。按前缀模糊匹配会把不该动的目录圈进来；插件原来只认 `^dsh-[A-Za-z0-9]{6}$` 是对的。
 
+## M12 · 实例 temp 目录：分层直接删除（2026-09-26）
+
+### 结论先说
+
+temp 残留**可以**由插件收干净，但做法不是"擦标签"（v5 已整块回退，见 M11），而是**直接删除目录**；而且必须**分层** —— "删掉所有 temp 目录"在多实例机器上会打断别的实例。
+
+### 机制（读 `dsh-sandbox-local` 源码 + 实测）
+
+- temp 根由 `mkdtempSync(join(tmpdir(), "dsh-"))` 创建 → 名字 = `dsh-` + 6 位随机串；
+- 它是**按「会话 × 工作区」惰性创建**的（`materializeAclGrant(sessionId, workspaceRoot)`，key = `JSON.stringify([sessionId, workspaceRoot])`），第一次以 workspace-write 跑受限命令时才出现；
+- **正常 dispose 时 DSH 自己会 `rmSync` 掉它**（`removeTempDir`）→ 真正需要插件收的是**硬杀 / 崩溃 / 删除失败**留下的那些；
+- 活着的 temp 根会被不停碰（本会话实测 `TEMP` 就指向它），因此**闲置时长是唯一可靠的"没人在用"判据**；`.lock` 只是**临时**文件（同一个活根几分钟前有 2 个、再看是 0 个）→ 只能当"跳过信号"。
+
+### 判据与阶段（v6）
+
+| 层 | 条件 | 处置 |
+|---|---|---|
+| 低风险 | 严格 `^dsh-[A-Za-z0-9]{6}$` ∧ **无 `.lock`** ∧ **闲置 ≥10 分钟** | 任何阶段都删 |
+| 可能被占用 | 有 `.lock` 或最近仍被碰过 | **仅当"自己是最后一个实例"**（实例扫描**成功**且 0 个）才删 |
+| 扫描失败 / 不确定 | —— | **绝不**当成"没有其它实例"，只按低风险处理 |
+
+- 阶段：**启动**（台账 `temp-boot`，静默：只写台账 + 日志，不弹窗）/ **关闭**（`temp-close`，`closeInstance` 的**最后一步**）/ **点「清理」**（`temp-user`）。
+- **不走回收站**：回收站副本会带着低标签留在 `$Recycle.Bin` 里（M11 里那 52 条就是），与"零残留"矛盾。
+- 删除实现：`fs.rm(recursive)`；遇 `EBUSY`/`EPERM`/`EACCES` **立即放弃该根**（= 还有人在用），不做部分强删、不重试；探测到 `Everyone:(DENY)(DC)` 时先 `icacls /remove:d`（`/T` 一律不加）。
+- **执行顺序与报告的偏离（甲方案）**：要求是"关闭时优先清理自己的临时文件"——语义上对，但本实例的关闭链自己还要 spawn PowerShell / 写台账，所以**报告里它排第一、执行放最后**。若要真"先删自己"，得把所有子进程的 `TEMP` 重定向到工作区内的 scratch（乙方案，未采用）。
+- 基线文件 `$DSH_HOME/sandbox-sweep/temp-baseline.json` 记录本实例启动时已存在的 temp 根 → 用来认"本实例生命周期内新出现的"（报告里 `selfLifetime`）。
+
+### 契约与自检
+
+- `PROBE_VERSION` / `PROBE_MIN` **5 → 6**；报告 `tempRoots = {parents, scanned, selfLifetime, idle, locked, fresh, deletable, othersScanned, othersCount, lastInstance, sample[]}`；
+- 客户端「临时区 N 个 · 可清理 x · 占用中 y · 刚用过 z」这一行**排在工作区行之前**；空操作判定恢复为"工作区三项皆无 **且 `deletable === 0`**"；
+- 自检：`risks-test` 21 → **24 例**（3 例 temp 影响空操作）；`probe-offline` 加回 D 段（假 `TEMP` 重定向 + 只认 `dsh-<6位>` + 认 `.lock` + 闲置门槛）；四套全绿。
+
+### 评估过但没采用的方案
+
+- **"启动时删所有 temp 目录"**：每个活实例的 `%TEMP%` 就是它自己的 temp 根（本会话实测 `TEMP` = 那个目录）→ 删活的会打断别人，因此只能"删空闲的 + 自己是最后一个实例时全删"。
+- **`.lock` 当"占用"判据**：实测不可靠（见上），只保留为"跳过信号"。
+- **先删自己的根**：与关闭链自用 `TEMP` 冲突（见上，采用甲方案）。
+
 ## Spike 结项状态（2026-09-26 更新）
 
 | Spike | 状态 | 落地方式 / 结论文档 |

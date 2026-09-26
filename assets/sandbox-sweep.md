@@ -20,7 +20,9 @@ description: 当本机装有 dsh-sandbox-sweep 插件、且出现这些症状时
 - `Everyone:(CI)(DENY)(DC)` → 删除拒绝（**这就是"目录删不掉"的成因**）
 - `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)` → 低完整性标签
 
-**第二处溢出面（插件不再处理）**：同一套标签也会写到**实例 temp 目录**（形如 `dsh-<6位>`，通常在 `%TEMP%` 或 OneDrive 重定向后的 `%USERPROFILE%\OneDrive`）。**v5 起插件对它不做任何处理**——原先的擦除用错了 SID（temp 目录上写的是 `tempWriteSid`，插件却按 `workspaceWriteSid` 撤），结果不是撤销而是授权：实测 45 个原本只有 ACE 的 temp 目录反被加上低标签，且重复执行不收敛。评估后确认这些残留**不影响日常使用**（没有 DENY 不挡删除、属主是自己、多为空壳），所以整块去掉，交给系统临时目录卫生回收。
+**第二处溢出面：实例 temp 目录**（形如 `dsh-<6位>`，通常在 `%TEMP%` 或 OneDrive 重定向后的 `%USERPROFILE%\OneDrive`）。它由 `dsh-sandbox-local` 按「会话 × 工作区」惰性创建，**正常退出时 DSH 自己会删**；硬杀 / 崩溃 / 删失败留下的由本插件收：**启动与关闭时直接删除**（不走回收站）。
+判据分两层：**无 `.lock` 且闲置 ≥10 分钟** → 任何阶段都删；**有 `.lock` 或刚被碰过** → 只有"本机最后一个实例"才删（否则视为别的实例正在用）。名字不匹配的一律不碰——`dsh-spill-*`（历史会话"完整输出"的目标）/`dsh-subprocess-*`/`dsh-ssh-uploads` 都不是沙箱 temp 根。
+⚠️ 别把 `.lock` 当成"有没有人在用"的判据：实测同一个活着的 temp 根，几分钟前有 2 个 `.lock`、再看是 0 个。**唯一可靠的依据是闲置时长。**
 
 ## 遇到这些症状时怎么判断
 

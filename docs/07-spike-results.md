@@ -841,6 +841,36 @@ temp 残留**可以**由插件收干净，但做法不是"擦标签"（v5 已整
 - **`.lock` 当"占用"判据**：实测不可靠（见上），只保留为"跳过信号"。
 - **先删自己的根**：与关闭链自用 `TEMP` 冲突（见上，采用甲方案）。
 
+### 首轮实测后的两处修正（2026-09-27 00:3x，rc.2 重启后）
+
+**实测现场**（台账 + 实例日志 + 文件系统三方对照）：rc.2 于 00:31:27 启动、00:31:52 关闭，v6 两条 temp 记录都在：
+
+| 记录 | 结果 |
+|---|---|
+| `temp-boot`（00:31:30） | `scanned=2 删0 跳过2`；`others={scanned:true,count:1}`、`lastInstance=false` |
+| `temp-close`（00:31:52） | 同上：跳过 `dsh-sHFY5D`（"最近仍被碰过"）与本会话的 `dsh-sNSZk7` |
+
+**分层判据本身工作正常** —— 它认出机上有别的实例（正是本会话的 0.1.5-rc.3），于是只清"无风险"的，两个根都因"刚被碰过"被跳过。**但它暴露两个真缺口：**
+
+**缺口 1：DSH 的 dispose 链在这条关闭路径上从不执行。** 实例日志连续出现：
+```
+[sandbox-sweep] shutdown: loader.dispose: 不可用 | root.dispose: 不可用 | fiber.dispose: 不可用 | scope.dispose: 不可用
+[sandbox-sweep] 退出进程
+```
+而 `sandbox-local` 删 temp 根那步注册在 `ctx.effect(() => () => revokeAclGrants())` 上 → **effect 不跑，temp 根就不删**。旁证：`dsh-sHFY5D` 事后仍在，且**仍带着它的能力 ACE**（`ACE=True`、无 LOW、无 DENY）→ 说明它的 provider 从未 dispose。
+→ 上面"机制"一节要按这条改写：**"DSH 自己会删"只在它自己的 dispose 链真正跑起来时成立；本插件的关闭路径拿不到 dispose 入口，关闭时的 temp 清理只能靠插件。**
+
+**缺口 2：原先把"自己的根"和"可能被占用的根"一起挂在 `lastInstance` 上** —— 于是"机上有别的实例"时，关闭连**自己的**根也不删（`dsh-sHFY5D` 就是这么活下来的），违背"关闭时优先清理自己的"。
+
+**修正（v6.1）**：
+
+| # | 改动 |
+|---|---|
+| 1 | 新增 `providerTempDirs(ctx)`：**精确**取本进程自己的 temp 根 —— `dsh-sandbox-local` 注册为 `ctx.sandbox`，其 `tempCapabilities` 是**公开字段**的 Map（key = `[sessionId, workspaceRoot]` → `{dir, sid, grant}`）；拿不到时退回基线启发式（启动后新出现 ∧ 无 `.lock`） |
+| 2 | 判据抽成**纯函数** `planTempSweep(roots, opts)`（便于离线自检）：**自己的根只在 `phase === "close"` 时删** —— 点「清理」时删它等于把当前会话的 `TEMP` 从脚下抽走 |
+| 3 | 关闭阶段目标集 = 低风险 ∪ **自己的根**（不再要求 `lastInstance`）∪（`lastInstance` 时其余全部）；执行顺序仍是自己的根排最后（甲方案） |
+| 4 | `probe-offline` 新增 **E 段 6 条断言**：关闭删自己的根 / 关闭不删别人的占用根 / 点清理跳过自己的根 / 点清理删闲置根 / 启动+仅此实例除自己外全删 / 启动+有别人的只删闲置无锁 |
+
 ## Spike 结项状态（2026-09-26 更新）
 
 | Spike | 状态 | 落地方式 / 结论文档 |

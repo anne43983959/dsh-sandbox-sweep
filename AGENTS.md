@@ -11,7 +11,7 @@
 - **不做外挂**：无用户脚本、无书签、无 DOM 注入、不改 DSH 源码；只以插件包形式安装（支持本地绝对路径安装）。
 - **界面在哪**：侧栏座位 `sidebar.footer.action`（list 型）。**不是**"新会话按钮上方"——那个按钮由外壳硬编码、上方没有可用座位。
 - **什么时候真的会动东西**：工作区**本来就没有痕迹**时「清理」是**空操作**（只弹气泡）；有痕迹才走"终止工作 → 权限回收（会话切只读）→ 擦除 → 校验"。
-- **还会顺手清临时区**：DSH 给每个「会话 × 工作区」在 `%TEMP%` 下建一个 `dsh-<6位>` 临时根（`dsh-sandbox-local` 的 `mkdtempSync`），正常 dispose 时它自己会删；**硬杀 / 崩溃 / dispose 失败留下的**由本插件在**启动与关闭时直接删除**（分层规则见 §3，**不走回收站**）。
+- **还会顺手清临时区**：DSH 给每个「会话 × 工作区」在 `%TEMP%` 下建一个 `dsh-<6位>` 临时根（`dsh-sandbox-local` 的 `mkdtempSync`）。**它自己的 dispose 链会删，但本插件的关闭路径拿不到 dispose 入口**（日志实测四个目标全"不可用"）→ 所以**关闭与启动时由插件直接删除**（分层规则见 §3，**不走回收站**）；硬杀 / 崩溃遗留靠启动清扫收。
 - **有风险才弹窗**；没枚举到的情况一律**按风险弹窗**，并在弹窗底部给出**可复制的原始自检报告**（详见 §4）。
 
 ## 1.5 目录约定（本机）
@@ -48,6 +48,7 @@
 | 跨实例判定 | 租约 `$DSH_HOME/sandbox-sweep/instance.json`（60 s 心跳）＋各 home 的 `storages/workspace.json`；探查范围 = `homes/<版本>` 兄弟 home ∪ **默认 `~/.dsh`**；租约只认进程存活 |
 | 擦除范围（ACL） | **只有注册工作区根**：`AclWriteGrant` 撤销**必须 SID 匹配**——工作区根用 `workspaceWriteSid`，temp 根上写的是 `tempWriteSid`，拿错 SID 不是撤销而是**授权**（v5 因此整块回退擦除，见 docs/07 M11） |
 | temp 清理（v6，**删除而非擦除**） | 只碰严格 `^dsh-[A-Za-z0-9]{6}$`（`dsh-spill-*`/`dsh-subprocess-*`/`dsh-ssh-uploads` 一律不碰）。**低风险** = 无 `.lock` ∧ 闲置 ≥10 分钟 → 任何阶段都删；**可能被占用** = 有 `.lock` 或刚被碰过 → **仅当"自己是最后一个实例"**（实例扫描**成功**且 0 个）才删；扫描失败 ⇒ 只按低风险处理。**直接删除、不走回收站** |
+| 自己的 temp 根 | **精确**取自本进程的 `ctx.sandbox.tempCapabilities`（`dsh-sandbox-local` 的公开 Map：key=`[sessionId, workspaceRoot]` → `{dir}`），拿不到才退回基线启发式；判据在纯函数 `planTempSweep()` 里（`.smoke/probe-offline` E 段 6 条断言覆盖）。**只在关闭阶段删它**（点「清理」删它 = 抽掉当前会话的 TEMP）。⚠️ **DSH 自己的 dispose 链在本插件的关闭路径上不执行**（日志实测 `loader/root/fiber/scope.dispose` 全"不可用"），所以关闭时的 temp 清理只能靠插件 |
 | 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦 + `trigger`，temp 条目 trigger 为 `temp-boot`/`temp-close`/`temp-user`）＋ `sandbox-sweep/temp-baseline.json`（本实例启动时已存在的 temp 根 → 用来认"本实例生命周期内新出现的"）；**启动 3 s 后跑启动清扫**：① 硬杀遗留（本进程还没授权过、却仍带三件套的根）② 台账 `pending` 补擦（**路径已不存在的条目跳过**）③ **temp 分层删除（静默：只写台账与日志）** |
 | 删除动作 | 插件**会删目录，但只删实例 temp 根**（严格命名 + 分层判据），从不碰工作区里的任何文件；关闭链里 `closeInstance` 的 temp 步骤排在**最后**（甲：报告里排第一、执行放最后——本实例的关闭链自己还要用 TEMP）。删除失败即放弃（`EBUSY`/`EPERM`/`EACCES` = 还有人在用），不做部分强删 |
 

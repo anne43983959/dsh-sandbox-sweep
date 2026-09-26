@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { peerHomes, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, scanTempRoots } from "../lib/index.js";
+import { peerHomes, planTempSweep, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, scanTempRoots } from "../lib/index.js";
 
 const mine = process.argv[2];
 const ctx = { get: (name) => (name === "workspaceRegistry" ? { list: () => [{ path: mine }] } : undefined) };
@@ -114,6 +114,28 @@ console.log("homedir  = " + homedir());
 	const aged = inv2.roots.find((r) => r.root.endsWith("dsh-abc123"));
 	check("D 闲置 ≥10 分钟 → idle（分层清理的依据）", Boolean(aged) && aged.idle === true, JSON.stringify(aged && { idle: aged.idle }));
 	rmSync(fakeRoot, { recursive: true, force: true });
+}
+
+/* ---------- E：temp 分层判据（纯函数 planTempSweep，不碰真实临时区） ---------- */
+{
+	const mkRoot = (letter, locks, idle) => ({ root: "C:\\Temp\\dsh-" + letter.repeat(6), locks, idle, deny: false });
+	const ownRoot = mkRoot("A", 0, false);
+	const ownSet = {};
+	ownSet[canon(ownRoot.root)] = true;
+	const mk = (phase, lastInstance) =>
+		planTempSweep([{ ...ownRoot }, mkRoot("B", 0, true), mkRoot("C", 1, false)], {
+			phase, lastInstance, known: {}, ownSet, ownFallback: false,
+		});
+	const closePlan = mk("close", false);
+	check("E 关闭：自己的根即使刚被碰过也删（机上有别的实例也照删）", closePlan.targets.some((r) => r.root === ownRoot.root) && closePlan.own.length === 1);
+	check("E 关闭：别人的、刚被碰过且带 .lock 的根不删", closePlan.skipped.some((r) => r.root.endsWith("CCCCCC")));
+	const userPlan = mk("user", false);
+	check("E 点清理：自己的根一律跳过（删它=抽掉当前会话的 TEMP）", !userPlan.targets.some((r) => r.own) && userPlan.skipped.some((r) => r.own === true));
+	check("E 点清理：闲置且无 .lock 的根照删", userPlan.targets.some((r) => r.root.endsWith("BBBBBB")));
+	const bootLast = mk("boot", true);
+	check("E 启动且本机仅此实例：除自己的根外全删", bootLast.targets.length === 2 && !bootLast.targets.some((r) => r.own));
+	const bootBusy = mk("boot", false);
+	check("E 启动且有别的实例：只删闲置无锁的", bootBusy.targets.length === 1 && bootBusy.targets[0].root.endsWith("BBBBBB"));
 }
 
 console.log(bad === 0 ? "PROBE OK" : bad + " FAILURES");

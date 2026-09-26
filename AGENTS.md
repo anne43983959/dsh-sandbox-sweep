@@ -45,7 +45,7 @@
 | 擦除配方（顺序不可换） | ① `AclWriteGrant.create(workspaceWriteSid(root)).add(root,false).dispose()`（撤能力 ACE + 清低标签）→ ② `icacls <root> /remove:d *S-1-1-0`（去 world 删除拒绝）→ ③ 回读校验 `residue=[]`；**全部根级、不加 `/T`** |
 | 明确无效的做法 | `icacls /remove:g "*S-1-4-…"` 撤能力 ACE（实测 `processed 0 files`） |
 | 跨实例判定 | 租约 `$DSH_HOME/sandbox-sweep/instance.json`（60 s 心跳）＋各 home 的 `storages/workspace.json`；探查范围 = `homes/<版本>` 兄弟 home ∪ **默认 `~/.dsh`**；租约只认进程存活 |
-| 擦除范围 | **注册工作区根 ∪ 实例 temp 根**（名字匹配 `^dsh-[A-Za-z0-9]{6}$` 且探测到痕迹的目录；名字不匹配的一律不碰） |
+| 擦除范围 | **注册工作区根 ∪ 实例 temp 根**（名字匹配 `^dsh-[A-Za-z0-9]{6}$`、探测到痕迹、**且闲置 ≥ 10 分钟**的目录；名字不匹配的一律不碰——闲置护栏是为了不打断正在运行的其他实例） |
 | 状态与台账 | `$DSH_HOME/sandbox-sweep/ledger.json`（逐根结果 + `pending` 待擦 + `trigger`）；**启动 3 s 后跑启动清扫**：① 硬杀遗留（本进程还没授权过、却仍带三件套的根）② 台账 `pending` ③ temp 上的痕迹（**只擦标签、不删目录**） |
 | temp 空壳回收 | **只在用户点击「清理」时**把"已擦干净的空目录"送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
 

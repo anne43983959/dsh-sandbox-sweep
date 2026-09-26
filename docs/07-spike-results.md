@@ -742,6 +742,7 @@ ctx.inject(["systemPrompt"], (scope) => {
 |---|---|---|
 | 1 | **启动清扫扩成三类** | ① **硬杀遗留**：本进程刚起、**还没授权过任何根**，此时注册工作区根若仍带三件套 → 一定是上一轮留下的 → 擦；② 台账 `pending` 补擦（原有）；③ **temp 痕迹**（只擦标签） |
 | 2 | **temp 根纳入清理** | 新增 `probeTempRoots()`：候选父目录 = `os.tmpdir()` ∪ `TEMP`/`TMP` ∪ `%LOCALAPPDATA%\Temp` ∪ `%USERPROFILE%\OneDrive`（本机 temp 被 OneDrive 重定向，实测）；**只认 `^dsh-[A-Za-z0-9]{6}$`** 且探测到痕迹的目录，名字不匹配的一律不碰；8 路并发 + 30 s 缓存 |
+| 2b | **闲置护栏（自查补上的一条）** | temp 扫描是**全机**的，可能扫到**同机其它实例正在使用**的 temp。规则：只动**闲置 ≥ 10 分钟**的目录（`TEMP_IDLE_MS`）——正在运行的实例会不停碰自己的 temp，因此会被排除；本实例自己刚建的 temp 同样被排除 |
 | 3 | **空壳回收（仅用户主动）** | 点「清理」时把「已擦干净的空目录」送**回收站**（`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(..., SendToRecycleBin)`）；**启动清扫不删任何目录** |
 | 4 | 报告新增 `tempRoots` | `{parents, scanned, dirty, emptyShells, sample}`；`PROBE_VERSION` / `PROBE_MIN` **3 → 4** |
 | 5 | 空操作判定收紧 | `noop` 现在还要求 `tempRoots.dirty === 0`——否则「工作区干净」会让清理短路，temp 痕迹永远清不掉 |

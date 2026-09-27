@@ -41,7 +41,7 @@
 |---|---|
 | 宿主↔客户端通信 | `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`；**path 必须带 `/api` 前缀**（`endpointFromPath` 要求 `startsWith('/api/')`），否则注册报 `invalid exact Fetch route` |
 | 路由 | `POST /api/sandbox-sweep/{probe,capability,erase,revoke,stop-sessions,close}`；关闭开始后一律 409。`capability` 是 v8 新增的**毫秒级**能力探测（只读自己的版本号，不碰 ACL），客户端挂载时问一次 |
-| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 8**）↔ 客户端 `PROBE_MIN`（**当前 8**）：**改动报告字段或判定语义就两边同步 +1**（v4 加 `tempRoots` → v5 撤掉 → v6 以"分层删除清单"的语义加回 → v7 擦除口径定型 → **v8 报告加 `host`（宿主能力）**，见 docs/07 M11/M12/M15/M16），不匹配时客户端按风险弹窗 |
+| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 9**）↔ 客户端 `PROBE_MIN`（**当前 9**）：**改动报告字段或判定语义就两边同步 +1**（v4 加 `tempRoots` → v5 撤掉 → v6 以"分层删除清单"的语义加回 → v7 擦除口径定型 → **v8 报告加 `host`（宿主能力）**，见 docs/07 M11/M12/M15/M16/M17；**v9 起步骤可带 `na`（不适用）**），不匹配时客户端按风险弹窗 |
 | 客户端 bundle | 手写、无打包器：`window.__ModuleLoader__.load({ id, factory })`；只能 `require` 平台模块表里的 9 个 id（`react`、`react/jsx-runtime`、`react-dom`…） |
 | 擦除配方（v7 定型，**只对注册工作区根**） | ① `icacls <root> /remove:d *S-1-1-0`（去 world 删除拒绝）→ ② `icacls <root> /setintegritylevel Medium`（复位完整性标签）→ ③ 回读校验 `deny=false && lowLabel=false`（`residue=[]`）；**两条都只在"该项真的存在"时才执行**（干净项上跑 icacls 会白付一次全树传播：实测 36.5 s）；**全部根级、不加 `/T`**。⚠️ **能力 ACE（`S-1-4-x-y`）一律保留**：它是平台的跨会话复用缓存，撤它会打瘫正在用这个根的其他实例（2026-09-27 实测），且下一次授权要付整树重传播（实测 47.9 s，见 docs/07 M15） |
 | 明确无效的做法（历史 / 深度清理备注） | `icacls /remove:g "*S-1-4-…"` 撤能力 ACE **无效**（实测 `processed 0 files`）；唯一通道是模块 API —— 但 v7 起擦除路径**故意不撤**它 |
@@ -71,6 +71,7 @@ node .smoke/boot-test.mjs      # 期望 DIALOG OK / BOOT OK —— bundle 装载
 $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区根>"   # 期望 PROBE OK
 ```
 
+- **用 pwsh 直接跑**：不要在 node 脚本里 `execFileSync(..., { stdio: "pipe" })`——沙箱下会 `spawnSync … EPERM`。
 - 这些脚本**只读**（`probe-offline` 会在 `.smoke\` 下造一个假 home 再删掉），可以随手跑。
 - 改完**必须重启被改的实例**才生效（客户端 bundle 与宿主模块都在启动时装载）。见 §7。
 

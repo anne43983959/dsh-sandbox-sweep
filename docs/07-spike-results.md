@@ -1005,13 +1005,20 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 |---|---|---|
 | S3 宿主↔客户端 RPC 注册与鉴权 | **已落地** | `ctx.connection.fetch.register`，路径必须带 `/api` 前缀；鉴权沿用 DSH 自身的 Web 会话，插件不额外加层 |
 | S4 活跃对话口径与 `AgentHandle.dispose` 副作用 | **已落地（未用 dispose）** | `workspace/session-activity` + `workspace/session-stop`（`agent.cancel({kind:'user'})`，无 keepInbox → 排队输入被丢弃）；**不写归档集合**——受控侧实测会话未被归档 |
-| S5 常驻终端枚举 / 关闭 | **已落地** | `quiesceTerminals()`：`terminals.list/kill`，切只读前先清干净 |
+| S5 常驻终端枚举 / 关闭 | **已落地** | `quiesceTerminals()`：`terminals.list/kill`，切只读前先清干净；**v9 起无该服务的宿主记 `na`**（见 M17） |
 | S6 宿主优雅退出链 | **已落地 + 运行验证** | `closeInstance/shutdownHost`，M3 拿到启动器日志 `exit code: Some(0)` |
 | S7 宿主进程内进程扫描取版本 | **已落地** | CIM `Win32_Process` + 命令行正则取 `versions/<v>`；宿主内可用（只有开发会话的沙箱里 `spawn EPERM`/WMI 返回 0 行） |
 | S8 宿主进程内 ACL 擦除可行性与失败面 | **已落地** | 官方模块 `AclWriteGrant` 撤销能力 ACE + 清标签，`icacls /remove:d` 去 world 拒绝；失败面 = 校验 `residue` 非空 → 台账 `pending` → 下次启动补擦 |
 
+## M17 · 无 `terminals` 服务的宿主：关闭链第 3 步改记「不适用」（v9）
+
+- **现象**：`0.1.5-rc.3` 上每次关闭都写 `… | 关闭常驻终端=fail | …`，其余 5 步全 `ok`（实例日志连续 3 次）。
+- **根因**：`quiesceTerminals()` 在 `ctx.get("terminals")` / `ctx.get("agents")` 不可用时把 `"terminals/agents 服务不可用"` 推进 `errors`，而步骤判定是 `errors.length === 0` → 必然 fail。实测该宿主的依赖树里**没有任何包注册 `terminals` 服务**（`dsh-terminal` / `dsh-terminal-*` 存在，但不提供这个 id）。
+- **为什么可以是「不适用」**：v7 起关闭链已不再切沙箱模式，QUIESCE 的「关终端」当初是为那次切换准备的；常驻终端也会随进程退出而消失。
+- **改法**：`out.na / out.reason` 语义 → 步骤带 `na` → 日志行 `name=na` → 客户端按 `na` 渲染；**报告契约版本 8 → 9**（判定语义变化，两半同步）。
+- **验证**：`node --check` 两半 OK；离线 4 套 `ALL OK` / `LABELS OK` / `DIALOG OK + BOOT OK` / `PROBE OK`。真实关闭链待重启实例后看一次日志（应出现 `关闭常驻终端=na`）。
 ## 仍未做（明确清单）
 
-- 浅色 / 深色两套主题下按钮与弹窗对比度逐一核对；插件"禁用 / 回滚"实测；测试矩阵 T3（常驻终端）、T4（作业 + 定时提醒）、T7（大工作区耗时）、T12（并发点击）留待真实场景观察。
+- 浅色 / 深色两套主题下按钮与弹窗对比度逐一核对；插件"禁用 / 回滚"实测；测试矩阵 T3（常驻终端）、T4（作业 + 定时提醒）、T7（大工作区耗时）、T12（并发点击）留待真实场景观察。另：`0.1.5-rc.3` 无 `terminals` 服务，T3（常驻终端）在该宿主上不适用（M17）。
 - ~~技能 `low-integrity-repair` 三处结论修正~~ → **2026-09-26 已按作者批准执行**（见上一节）。
 - ~~擦除成功后 UI 提示"建议重启"~~ → **作者明确表示不需要**（2026-09-26），维持 README 影响表 + 步骤明细的写法。

@@ -32,7 +32,7 @@ dsh-sandbox-sweep/
 |---|---|
 | 本实例版本 / DSH_HOME | 宿主自身（`process.env.DSH_HOME`、包版本） |
 | 活跃对话与工作类型 | `ctx.agents` 活跃注册表 + 会话投影（回合/子智能体/作业/定时提醒，口径对齐 workspace 插件） |
-| 常驻终端 | `ctx.terminals` 会话清单 |
+| 常驻终端 | `ctx.terminals` 会话清单（`0.1.5-rc.3` 无此服务 → 该步记 `na`，见 docs/07 M17） |
 | 本实例工作区 | sandbox-policy 记录的会话工作区（去重） |
 | 三件现状 | 读 ACL（宿主侧，无需提权） |
 | 其他活跃实例 | 进程扫描（首选） + 租约目录（补充） |
@@ -79,7 +79,7 @@ async function eraseRoot(root: string) {
 ### 2.3 stop（关闭时序）
 ```
 FENCE    置"不再受理新的受限启动"（参照终端后端的模式围栏形状）
-QUIESCE  cancel 各 agent → 关终端 → 取消作业 → 等待子进程（超时则强杀并记录）
+QUIESCE  cancel 各 agent → 关终端（无 `terminals` 服务的宿主记 `na`）→ 取消作业 → 等待子进程（超时则强杀并记录）
 FLUSH    逐会话 ctx.sessions.flush(session)
 ERASE    按作者选择执行（失败按作者选择：中止 / 落台账继续）
 TEMP     分层直接删除实例 temp 根（closeInstance 的最后一步，排在 DISPOSE 之前；本实例自己的根排最后——关闭链自己还要用 TEMP）

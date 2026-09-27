@@ -2,7 +2,7 @@
   "name": "dsh-sandbox-sweep",
   "version": "0.1.0",
   "private": true,
-  "description": "DSH WebUI 插件：侧栏「清理沙箱痕迹 / 关闭DSH」两个按钮 —— 撤销 Windows 沙箱留在工作区上的三件套（能力 ACE + Everyone 删除拒绝 + 低完整性标签），并在启动/关闭时分层清理实例 temp 根。纯 VibeCoding 产物（实现者为 DSH agent，作者为人类；创建于 0.1.5-rc.3，适用于 0.1.7-alpha.1 起会写三件套的版本），来历与作者/实现者关系见 README。",
+  "description": "DSH WebUI 插件：侧栏「清理沙箱痕迹 / 关闭DSH」两个按钮 —— 擦掉 Windows 沙箱留在工作区上的有害痕迹（Everyone 删除拒绝 + 低完整性标签；能力 ACE 作为跨会话复用缓存保留），并在启动/关闭时分层清理实例 temp 根。纯 VibeCoding 产物（实现者为 DSH agent，作者为人类；创建于 0.1.5-rc.3，适用于 0.1.7-alpha.1 起会写三件套的版本），来历与作者/实现者关系见 README。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

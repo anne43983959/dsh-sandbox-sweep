@@ -43,7 +43,9 @@ dsh-sandbox-sweep/
 ```ts
 // 顺序不可颠倒；每步幂等；每根一把锁（复用生态既有做法：每路径锁文件）
 async function eraseRoot(root: string) {
-  await revokeCapabilityAndLabel(root)     // ① 必须先做：三件精确在位时 add() 命中跳过（0 传播），dispose() 撤 ACE + 清标签
+  // ⚠️ v7（2026-09-27）起配方已简化：只擦「删除拒绝 + 低标签」，**能力 ACE 保留**（平台跨会话复用缓存；
+  //    撤它会打瘫正在用该根的其他实例，并让下一次授权重付一次整树传播）。下面 ① 是 v6 及以前的写法，留作历史与"深度清理"参考。
+  await revokeCapabilityAndLabel(root)     // ①（历史）三件精确在位时 add() 命中跳过（0 传播），dispose() 撤 ACE + 清标签
   await removeWorldDeleteChildDeny(root)   // ② 再去 world 删除拒绝（icacls；Everyone 有名字，可解）
   await sweepSpillAround(root)             // ③ 上层目录深度受限扫描孤儿标签
   return verify(root)                      // ④ 根 + 目录级全量 + 文件抽样（配额）

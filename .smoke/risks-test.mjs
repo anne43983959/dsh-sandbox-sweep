@@ -23,6 +23,7 @@ const en = keys(src.slice(enStart, src.indexOf("const t =", enStart) > 0 ? src.i
 
 const clean = { root: "R", ace: false, deny: false, lowLabel: false, error: null };
 const trio = { root: "R", ace: true, deny: true, lowLabel: true, error: null };
+const aceOnly = { root: "R", ace: true, deny: false, lowLabel: false, error: null };
 const base = { probeVersion: Number(minMatch[1]), instancesScanned: true, workspaces: [clean], otherInstances: [], sessions: [], errors: [] };
 const peerUnknown = { pid: 3, version: "0.1.5-rc.3", sharesWorkspace: null, verified: false };
 const peerShares = { pid: 2, version: "0.1.7-rc.2", sharesWorkspace: true, verified: true };
@@ -32,7 +33,8 @@ const live = { id: "s1", activity: ["turn"] };
 const kinds = (v) => v.risks.map((r) => r.kind).join(",");
 const cases = [
 	["清理 · 全干净 → 空操作、不打扰", { ...base }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
-	["清理 · 只剩 ACE → 有活可干、无风险", { ...base, workspaces: [trio] }, "sweep", true, (v) => v.noop === false && kinds(v) === ""],
+	["清理 · 有害两件齐全 → 有活可干、无风险", { ...base, workspaces: [trio] }, "sweep", true, (v) => v.noop === false && kinds(v) === ""],
+	["清理 · 只剩能力 ACE（复用缓存）→ 空操作、不打扰", { ...base, workspaces: [aceOnly] }, "sweep", true, (v) => v.noop === true && kinds(v) === ""],
 	["清理 · 三件套 + 无法归属 → unknown", { ...base, workspaces: [trio], otherInstances: [peerUnknown] }, "sweep", true, (v) => kinds(v) === "unknown"],
 	["清理 · 三件套 + 有人用别的工作区 → 不弹窗", { ...base, workspaces: [trio], otherInstances: [peerOther] }, "sweep", true, (v) => kinds(v) === ""],
 	["清理 · 三件套 + 确认共享 → sharing", { ...base, workspaces: [trio], otherInstances: [peerShares] }, "sweep", true, (v) => kinds(v) === "sharing"],

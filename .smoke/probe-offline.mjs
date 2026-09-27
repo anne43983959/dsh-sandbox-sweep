@@ -133,9 +133,31 @@ console.log("homedir  = " + homedir());
 	check("E 点清理：自己的根一律跳过（删它=抽掉当前会话的 TEMP）", !userPlan.targets.some((r) => r.own) && userPlan.skipped.some((r) => r.own === true));
 	check("E 点清理：闲置且无 .lock 的根照删", userPlan.targets.some((r) => r.root.endsWith("BBBBBB")));
 	const bootLast = mk("boot", true);
-	check("E 启动且本机仅此实例：除自己的根外全删", bootLast.targets.length === 2 && !bootLast.targets.some((r) => r.own));
+	// v7：即便"本机仅此实例"，也**只放宽 .lock**；"刚被碰过"的仍不删（防止误删活实例的根）
+	check("E 启动且本机仅此实例：只删闲置的（刚被碰过的仍不删）", bootLast.targets.length === 1 && bootLast.targets[0].root.endsWith("BBBBBB"));
 	const bootBusy = mk("boot", false);
 	check("E 启动且有别的实例：只删闲置无锁的", bootBusy.targets.length === 1 && bootBusy.targets[0].root.endsWith("BBBBBB"));
+
+	/* ---- v7 回归：2026-09-27 实测事故（删掉活实例的 temp 根） ---- */
+	const fresh = mkRoot("D", 0, false);
+	const planFresh = planTempSweep([{ ...fresh }], {
+		phase: "close", lastInstance: true, known: {}, ownSet: {}, ownFallback: false, peerTempRoots: {},
+	});
+	check("E v7：即便判定为「本机仅此实例」，也不删刚被碰过的根", planFresh.targets.length === 0 && planFresh.skipped.some((r) => /最近仍被碰过/.test(r.reason)), JSON.stringify(planFresh.skipped.map((r) => r.reason)));
+
+	const lockIdle = mkRoot("E", 1, true);
+	const planLock = planTempSweep([{ ...lockIdle }], {
+		phase: "close", lastInstance: true, known: {}, ownSet: {}, ownFallback: false, peerTempRoots: {},
+	});
+	check("E v7：仅此实例时只放宽 .lock（有 .lock 但闲置 → 可删）", planLock.targets.length === 1 && planLock.targets[0].root === lockIdle.root);
+
+	const peerRoot = mkRoot("F", 0, true);
+	const peerSet = {};
+	peerSet[canon(peerRoot.root)] = true;
+	const planPeer = planTempSweep([{ ...peerRoot }], {
+		phase: "close", lastInstance: true, known: {}, ownSet: {}, ownFallback: false, peerTempRoots: peerSet,
+	});
+	check("E v7：活租约声明过的根一律不碰（声明免疫）", planPeer.targets.length === 0 && planPeer.skipped.some((r) => r.peerDeclared === true), JSON.stringify(planPeer.skipped.map((r) => r.reason)));
 }
 
 console.log(bad === 0 ? "PROBE OK" : bad + " FAILURES");

@@ -21,7 +21,7 @@ description: 当本机装有 dsh-sandbox-sweep 插件、且出现这些症状时
 - `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)` → 低完整性标签
 
 **第二处溢出面：实例 temp 目录**（形如 `dsh-<6位>`，通常在 `%TEMP%` 或 OneDrive 重定向后的 `%USERPROFILE%\OneDrive`）。它由 `dsh-sandbox-local` 按「会话 × 工作区」惰性创建，**正常退出时 DSH 自己会删**；硬杀 / 崩溃 / 删失败留下的由本插件收：**启动与关闭时直接删除**（不走回收站）。
-判据分两层：**无 `.lock` 且闲置 ≥10 分钟** → 任何阶段都删；**有 `.lock` 或刚被碰过** → 只有"本机最后一个实例"才删（否则视为别的实例正在用）。**本实例自己的根**是例外：关闭时（也只有关闭时）一定删 —— 它精确取自 `ctx.sandbox.tempCapabilities`；点「清理」时不删它（那会把当前会话的 `TEMP` 抽走）。名字不匹配的一律不碰——`dsh-spill-*`（历史会话"完整输出"的目标）/`dsh-subprocess-*`/`dsh-ssh-uploads` 都不是沙箱 temp 根。
+判据分两层：**无 `.lock` 且闲置 ≥10 分钟** → 任何阶段都删；**有 `.lock` 或刚被碰过** → 只有「本机最后一个实例」**且仍然闲置 ≥10 分钟**时才删（v7 收紧；只放宽 `.lock` 一项）。另外活着的实例会在租约里**声明**自己的 temp 根，被声明的根一律不碰。**本实例自己的根**是例外：关闭时（也只有关闭时）一定删 —— 它精确取自 `ctx.sandbox.tempCapabilities`；点「清理」时不删它（那会把当前会话的 `TEMP` 抽走）。名字不匹配的一律不碰——`dsh-spill-*`（历史会话"完整输出"的目标）/`dsh-subprocess-*`/`dsh-ssh-uploads` 都不是沙箱 temp 根。
 ⚠️ 别把 `.lock` 当成"有没有人在用"的判据：实测同一个活着的 temp 根，几分钟前有 2 个 `.lock`、再看是 0 个。**唯一可靠的依据是闲置时长。**
 
 ## 遇到这些症状时怎么判断

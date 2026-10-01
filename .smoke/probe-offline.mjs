@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { peerHomes, planTempSweep, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, scanTempRoots } from "../lib/index.js";
+import { detectVersion, hostCaps, peerHomes, planTempSweep, probeInstances, publishSourceNote, readPeerLeases, readPeerWorkspaceRoots, scanTempRoots } from "../lib/index.js";
 
 const mine = process.argv[2];
 const ctx = { get: (name) => (name === "workspaceRegistry" ? { list: () => [{ path: mine }] } : undefined) };
@@ -158,6 +158,71 @@ console.log("homedir  = " + homedir());
 		phase: "close", lastInstance: true, known: {}, ownSet: {}, ownFallback: false, peerTempRoots: peerSet,
 	});
 	check("E v7：活租约声明过的根一律不碰（声明免疫）", planPeer.targets.length === 0 && planPeer.skipped.some((r) => r.peerDeclared === true), JSON.stringify(planPeer.skipped.map((r) => r.reason)));
+}
+
+/* ---------- F：宿主能力分流的前置条件 —— 沙箱被 dsh-sandbox-legacy-acl 接管（v10） ---------- */
+{
+	const fakeHome = join(new URL("./fakehome/", import.meta.url).pathname.replace(/^\//, ""), "caps-home");
+	rmSync(fakeHome, { recursive: true, force: true });
+	mkdirSync(fakeHome, { recursive: true });
+	const savedHome = process.env.DSH_HOME;
+	// 让 detectVersion() 从命令行解析出 0.1.7-rc.2（= 本机那份会被 legacy-acl 接管的实例）
+	const savedArgv = process.argv.slice();
+	process.argv.length = 0;
+	process.argv.push(savedArgv[0] || "node", "C:\\x\\versions\\0.1.7-rc.2\\node_modules\\@deepseek-ai\\dsh-web-app\\bin.js");
+	process.env.DSH_HOME = fakeHome;
+	const reportFile = join(fakeHome, "sandbox-legacy-acl", "report.json");
+	console.log("F 版本 = " + JSON.stringify(detectVersion()) + " · report = " + reportFile);
+
+	// (a) 已接管：status=installed 且 enabled=true → 按早期宿主（0.1.5 那一档）处理：只有关闭
+	mkdirSync(dirname(reportFile), { recursive: true });
+	writeFileSync(reportFile, JSON.stringify({ plugin: "dsh-sandbox-legacy-acl", enabled: true, status: "installed", reason: "x" }));
+	const taken = hostCaps();
+	check("F(a) legacy-acl 接管 → 只有关闭这一档（sweep=false / tier=legacy / source=legacy-acl-plugin）",
+		taken.sweep === false && taken.close === true && taken.tier === "legacy" && taken.source === "legacy-acl-plugin"
+			&& taken.trioHost === true && taken.legacyAcl.detected === true && taken.legacyAcl.status === "installed" && taken.legacyAcl.enabled === true,
+		JSON.stringify({ sweep: taken.sweep, tier: taken.tier, source: taken.source, trioHost: taken.trioHost, status: taken.legacyAcl.status, enabled: taken.legacyAcl.enabled }));
+
+	// (b) 文件不存在 → 保守回到按宿主版本判（0.1.7-rc.2 会写三件套 → sweep=true）
+	rmSync(reportFile, { force: true });
+	const absent = hostCaps();
+	check("F(b) report.json 不存在 → 回原逻辑（按宿主版本判：sweep=true / source=host-version）",
+		absent.sweep === true && absent.tier === "trio" && absent.source === "host-version" && absent.trioHost === true
+			&& absent.legacyAcl.present === false && absent.legacyAcl.detected === false && absent.legacyAcl.error === null,
+		JSON.stringify({ sweep: absent.sweep, tier: absent.tier, source: absent.source, present: absent.legacyAcl.present, error: absent.legacyAcl.error }));
+
+	// (c) 损坏（非法 JSON）→ 保守回原逻辑，且**不抛错**
+	writeFileSync(reportFile, '{ "status": "installed", "enabled": tru');
+	let broken = null;
+	let threw = null;
+	try { broken = hostCaps(); } catch (error) { threw = String((error && error.message) || error); }
+	check("F(c) report.json 损坏 → 保守回原逻辑且不抛错",
+		threw === null && Boolean(broken) && broken.sweep === true && broken.source === "host-version"
+			&& broken.legacyAcl.present === true && /解析失败/.test(String(broken.legacyAcl.error)),
+		JSON.stringify({ threw: threw, sweep: broken && broken.sweep, source: broken && broken.source, error: broken && broken.legacyAcl.error }));
+
+	// (c2) 不是 JSON、而是任意二进制/空文件：同样回原逻辑
+	writeFileSync(reportFile, "");
+	let blank = null;
+	let threw2 = null;
+	try { blank = hostCaps(); } catch (error) { threw2 = String((error && error.message) || error); }
+	check("F(c2) report.json 为空文件 → 保守回原逻辑且不抛错",
+		threw2 === null && Boolean(blank) && blank.sweep === true && blank.source === "host-version",
+		JSON.stringify({ threw: threw2, sweep: blank && blank.sweep, error: blank && blank.legacyAcl.error }));
+
+	// (d) status/enabled 差一点（installed 但 enabled=false；enabled=true 但 status=uninstalled）→ 也回原逻辑
+	writeFileSync(reportFile, JSON.stringify({ enabled: false, status: "installed" }));
+	const d1 = hostCaps();
+	writeFileSync(reportFile, JSON.stringify({ enabled: true, status: "uninstalled" }));
+	const d2 = hostCaps();
+	check("F(d) 只差一个字段 → 也回原逻辑（判据严格等价于 status=installed ∧ enabled=true）",
+		d1.sweep === true && d1.source === "host-version" && d2.sweep === true && d2.source === "host-version",
+		JSON.stringify({ d1: [d1.sweep, d1.legacyAcl.status, d1.legacyAcl.enabled], d2: [d2.sweep, d2.legacyAcl.status, d2.legacyAcl.enabled] }));
+
+	process.argv.length = 0;
+	for (const a of savedArgv) process.argv.push(a);
+	process.env.DSH_HOME = savedHome;
+	rmSync(join(fakeHome, ".."), { recursive: true, force: true });
 }
 
 console.log(bad === 0 ? "PROBE OK" : bad + " FAILURES");

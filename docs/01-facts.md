@@ -27,6 +27,14 @@ write-enabled（workspace-write）授权时，一次 `SetNamedSecurityInfoW`（`
 
 → 本项目中的风险实例判定阈值应为 **`>= 0.1.7-alpha.1`（含预发布）**。
 
+**补充（2026-09-30 实测）**：上表是**官方宿主**的边界。本机 `0.1.7-rc.2` 那份 home 里已有
+`sandbox-legacy-acl/report.json`（`plugin: "dsh-sandbox-legacy-acl"`、`status: "installed"`、`enabled: true`）
+—— 该实例的 Windows 沙箱已被本地插件 **`dsh-sandbox-legacy-acl`** 替换成 **0.1.5 那一档行为**
+（授权只写能力 SID 的 allow ACE；不写 Low 完整性格标签、不写 Everyone 删除拒绝）。
+也就是说「宿主版本 ≥ `0.1.7-alpha.1` ⇒ 一定有三件套」在本机 **不再无条件成立**：
+判定沙箱能力时必须先看这份报告（`status === "installed" && enabled === true` ⇒ 按早期宿主处理）。
+依据与实现见 `docs/07` M18、`AGENTS.md` §3「宿主能力分流」。
+
 ## 3. 擦除（A，6040 对象实验树）
 
 | 操作 | 耗时 |

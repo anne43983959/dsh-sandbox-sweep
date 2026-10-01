@@ -10,7 +10,7 @@
   **「清理沙箱痕迹」**（擦掉 Windows 沙箱留在工作区上的有害痕迹：删除拒绝 + 低标签）与 **「关闭DSH」**（优雅关闭本实例）。
 - **不做外挂**：无用户脚本、无书签、无 DOM 注入、不改 DSH 源码；只以插件包形式安装（支持本地绝对路径安装）。
 - **界面在哪**：侧栏座位 `sidebar.footer.action`（list 型）。**不是**"新会话按钮上方"——那个按钮由外壳硬编码、上方没有可用座位。
-- **什么时候真的会动东西**：「清理」只在**有要擦的两件**（删除拒绝 / 低标签）时才动手：终止工作 → 权限回收（会话切只读）→ 擦除 → 校验；**只剩能力 ACE 时是空操作**（只弹气泡，v7 口径）。关闭链 v7 起不再切只读（进程随即退出，令牌随进程消失）。**宿主 < `0.1.7-alpha.1` 时整个「清理」按钮都不显示**（v8：那种版本不写三件套，只保留优雅退出）。
+- **什么时候真的会动东西**：「清理」只在**有要擦的两件**（删除拒绝 / 低标签）时才动手：终止工作 → 权限回收（会话切只读）→ 擦除 → 校验；**只剩能力 ACE 时是空操作**（只弹气泡，v7 口径）。关闭链 v7 起不再切只读（进程随即退出，令牌随进程消失）。**宿主 < `0.1.7-alpha.1` 时整个「清理」按钮都不显示**（v8：那种版本不写三件套，只保留优雅退出）；**v10 起**，宿主版本够、但沙箱已被 `dsh-sandbox-legacy-acl` 接管时同样如此（见 §3「宿主能力分流」）。
 - **还会顺手清临时区**：DSH 给每个「会话 × 工作区」在 `%TEMP%` 下建一个 `dsh-<6位>` 临时根（`dsh-sandbox-local` 的 `mkdtempSync`）。**它自己的 dispose 链会删，但本插件的关闭路径拿不到 dispose 入口**（日志实测四个目标全"不可用"）→ 所以**关闭与启动时由插件直接删除**（分层规则见 §3，**不走回收站**）；硬杀 / 崩溃遗留靠启动清扫收。
 - **有风险才弹窗**；没枚举到的情况一律**按风险弹窗**，并在弹窗底部给出**可复制的原始自检报告**（详见 §4）。
 
@@ -41,11 +41,11 @@
 |---|---|
 | 宿主↔客户端通信 | `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`；**path 必须带 `/api` 前缀**（`endpointFromPath` 要求 `startsWith('/api/')`），否则注册报 `invalid exact Fetch route` |
 | 路由 | `POST /api/sandbox-sweep/{probe,capability,erase,revoke,stop-sessions,close}`；关闭开始后一律 409。`capability` 是 v8 新增的**毫秒级**能力探测（只读自己的版本号，不碰 ACL），客户端挂载时问一次 |
-| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 9**）↔ 客户端 `PROBE_MIN`（**当前 9**）：**改动报告字段或判定语义就两边同步 +1**（v4 加 `tempRoots` → v5 撤掉 → v6 以"分层删除清单"的语义加回 → v7 擦除口径定型 → **v8 报告加 `host`（宿主能力）**，见 docs/07 M11/M12/M15/M16/M17；**v9 起步骤可带 `na`（不适用）**），不匹配时客户端按风险弹窗 |
+| 报告契约版本 | 宿主 `PROBE_VERSION`（**当前 10**）↔ 客户端 `PROBE_MIN`（**当前 10**）：**改动报告字段或判定语义就两边同步 +1**（v4 加 `tempRoots` → v5 撤掉 → v6 以"分层删除清单"的语义加回 → v7 擦除口径定型 → **v8 报告加 `host`（宿主能力）** → **v9 步骤可带 `na`** → **v10 `host` 加 `source` / `tier` / `legacyAcl`（分流依据），并把判定依据写进台账**，见 docs/07 M11/M12/M15/M16/M17/M18），不匹配时客户端按风险弹窗 |
 | 客户端 bundle | 手写、无打包器：`window.__ModuleLoader__.load({ id, factory })`；只能 `require` 平台模块表里的 9 个 id（`react`、`react/jsx-runtime`、`react-dom`…） |
 | 擦除配方（v7 定型，**只对注册工作区根**） | ① `icacls <root> /remove:d *S-1-1-0`（去 world 删除拒绝）→ ② `icacls <root> /setintegritylevel Medium`（复位完整性标签）→ ③ 回读校验 `deny=false && lowLabel=false`（`residue=[]`）；**两条都只在"该项真的存在"时才执行**（干净项上跑 icacls 会白付一次全树传播：实测 36.5 s）；**全部根级、不加 `/T`**。⚠️ **能力 ACE（`S-1-4-x-y`）一律保留**：它是平台的跨会话复用缓存，撤它会打瘫正在用这个根的其他实例（2026-09-27 实测），且下一次授权要付整树重传播（实测 47.9 s，见 docs/07 M15） |
 | 明确无效的做法（历史 / 深度清理备注） | `icacls /remove:g "*S-1-4-…"` 撤能力 ACE **无效**（实测 `processed 0 files`）；唯一通道是模块 API —— 但 v7 起擦除路径**故意不撤**它 |
-| 宿主能力分流（v8） | `hostCaps()` = `trioRisk(detectVersion())`：**会写三件套的宿主（≥ `0.1.7-alpha.1`）**才提供「清理沙箱痕迹」；更早的宿主（如 `0.1.5-rc.3`，只用能力 ACE 且 v7 起不擦）**只提供「关闭DSH」**——不显示清理按钮、关闭链跳过擦除、启动清扫整块跳过、temp 只清自己的根。判据来自 `detectVersion()`（解析 `process.argv` 里的 `versions/<v>/`，本机实测两份 home 分别得 `0.1.5-rc.3` / `0.1.7-rc.2`） |
+| 宿主能力分流（v8，**v10 加前置条件**） | `hostCaps()`：**真的会写三件套的宿主**才提供「清理沙箱痕迹」；否则**只提供「关闭DSH」**——不显示清理按钮、关闭链跳过擦除、启动清扫整块跳过、temp 只清自己的根（`sweep=false` 一个口径管三处）。判据 = ① `trioRisk(detectVersion())`（解析 `process.argv` 里的 `versions/<v>/`，本机实测两份 home 分别得 `0.1.5-rc.3` / `0.1.7-rc.2`）**且** ② **沙箱未被 `dsh-sandbox-legacy-acl` 接管**：读 `<DSH_HOME>/sandbox-legacy-acl/report.json`，`status === "installed" && enabled === true` → 判为已接管，**按早期宿主（0.1.5 那一档）处理**；文件不存在 / 读不到 / 解析失败 / 其它 status → **保守回退**到只按宿主版本判。返回里带判定依据：`source`（`legacy-acl-plugin` 或 `host-version`）、`tier`（`legacy` / `trio`）、`legacyAcl:{detected,present,status,enabled,path,error}`，并进自检报告（`report.host`）与台账（条目里的 `host`，由 `hostTag()` 生成） |
 | 跨实例判定 | 租约 `$DSH_HOME/sandbox-sweep/instance.json`（60 s 心跳）＋各 home 的 `storages/workspace.json`；探查范围 = `homes/<版本>` 兄弟 home ∪ **默认 `~/.dsh`**；租约只认进程存活 |
 | 擦除范围 | **只有注册工作区根**；擦的只有**会害人的两件**（`Everyone:(CI)(DENY)(DC)` 与 Low 标签）。能力 ACE 不在擦除范围（0.1.5 只写它、0.1.7 复用它，两版本的 SID 公式与 ACE mask 相同）→ 擦完的状态 = 「只有 0.1.5 沙箱跑过」的痕迹，无用户可见影响 |
 | temp 清理（v7，**删除而非擦除**） | 只碰严格 `^dsh-[A-Za-z0-9]{6}$`（`dsh-spill-*`/`dsh-subprocess-*`/`dsh-ssh-uploads` 一律不碰）。**低风险** = 无 `.lock` ∧ 闲置 ≥10 分钟 → 任何阶段都删；判定为「本机最后一个实例」时**只放宽 `.lock` 一项、仍要求闲置 ≥10 分钟**（v7 收紧，见 docs/07 M14）；扫描失败 ⇒ 只按低风险处理。**直接删除、不走回收站** |
@@ -73,6 +73,8 @@ $env:DSH_HOME="<某个 home>" ; node .smoke/probe-offline.mjs "<你的工作区�
 
 - **用 pwsh 直接跑**：不要在 node 脚本里 `execFileSync(..., { stdio: "pipe" })`——沙箱下会 `spawnSync … EPERM`。
 - 这些脚本**只读**（`probe-offline` 会在 `.smoke\` 下造一个假 home 再删掉），可以随手跑。
+- ⚠️ `probe-offline.mjs` 的 **B 段依赖「本机没有别的活实例租约」**：同机还有活实例时会报 3 条 `FAIL`，**与代码改动无关**（2026-09-30 实测：同一时刻跑 `HEAD`（v9）基线同样 3 条，见 docs/07 M18）。**F 段（宿主能力分流的前置条件）与环境无关，必须全 PASS**。
+- `probe-offline.mjs` 的 **F 段**会临时改写 `process.argv`（伪造 `versions/0.1.7-rc.2` 的命令行）与 `DSH_HOME`（在 `.smoke\fakehome\caps-home` 下造 `sandbox-legacy-acl/report.json`），跑完恢复并删除。
 - 改完**必须重启被改的实例**才生效（客户端 bundle 与宿主模块都在启动时装载）。见 §7。
 
 ## 6. 红线

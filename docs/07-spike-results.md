@@ -1017,6 +1017,70 @@ SKIP dsh-sNSZk7  原因=最近仍被碰过  own=False
 - **为什么可以是「不适用」**：v7 起关闭链已不再切沙箱模式，QUIESCE 的「关终端」当初是为那次切换准备的；常驻终端也会随进程退出而消失。
 - **改法**：`out.na / out.reason` 语义 → 步骤带 `na` → 日志行 `name=na` → 客户端按 `na` 渲染；**报告契约版本 8 → 9**（判定语义变化，两半同步）。
 - **验证**：`node --check` 两半 OK；离线 4 套 `ALL OK` / `LABELS OK` / `DIALOG OK + BOOT OK` / `PROBE OK`。真实关闭链待重启实例后看一次日志（应出现 `关闭常驻终端=na`）。
+## M18 · 宿主能力分流加前置条件：沙箱被 `dsh-sandbox-legacy-acl` 接管时按早期宿主处理（v10，2026-09-30）
+
+**触发（作者实测确认）**：`0.1.7-rc.2` 实例的 Windows 沙箱已被本地插件 **`dsh-sandbox-legacy-acl`** 替换成 **0.1.5 那一档行为**（授权时只写能力 SID 的 allow ACE；不再写 Low 完整性格标签、不再写 Everyone 删除拒绝）。而 `hostCaps()` 只看宿主版本（`trioRisk(detectVersion())`）—— rc2 ≥ `0.1.7-alpha.1` → 判为"会写三件套"。结果：在该实例上点「清理沙箱痕迹」，走完流程报**「清理成功」**，其实**无物可擦**（工作区上只有能力 ACE，而能力 ACE 按 M15/v7 口径一律保留）。这是误报。
+
+**判据（写死这个约定，不另创检测方式）**：读 `<DSH_HOME>/sandbox-legacy-acl/report.json`
+（本机实测该文件形如 `{plugin:"dsh-sandbox-legacy-acl", status:"installed", enabled:true, vendor:{...}, override:{...}}`）：
+
+| report.json | 判定 | `hostCaps()` |
+|---|---|---|
+| `status === "installed" && enabled === true` | **沙箱已替换** | **按早期宿主（< `0.1.7-alpha.1` 那一档）处理** |
+| 不存在 / 读不到 / 解析失败 / 不是对象 / `status` 是别的值 / `enabled` 非 `true` | 未替换 | **保守回到原逻辑**（只按宿主版本判） |
+
+DSH_HOME 走插件既有的 `process.env.DSH_HOME`（与 `ledgerPath()` / `writeLease()` 同一套写法，不硬编码绝对路径）；`DSH_HOME` 缺失同样回退。读文件用同步 `readFileSync`（`node:fs`）——`hostCaps()` 保持同步函数，**四个调用点（collect / capability / 关闭链 / 启动清扫）零改动**；整段包在 try/catch 里，任何情况都不抛。
+
+**三处口径（都只读 `caps.sweep` 一个布尔，天然一致）**：
+
+| 落点 | 代码位置 | legacy-acl 接管时的行为 |
+|---|---|---|
+| ① 界面按钮 | `lib/client.js` 的 `SandboxSweepActions`：`cur.caps && cur.caps.sweep === true` 才渲染「清理沙箱痕迹」；`canErase` 同步为 false | **不显示清理按钮**，只显示「关闭DSH」；悬停/弹窗文案改说"沙箱已被 dsh-sandbox-legacy-acl 接管（按 0.1.5 那一档）"（新文案键 `hostLegacyAcl`，zh/en 齐全） |
+| ② 关闭链 | `lib/index.js` `closeInstance()`：`if (body.erase) { if (caps.sweep) {...擦除...} else {...跳过...} }` | **跳过擦除**，步骤记 `跳过：沙箱已被 dsh-sandbox-legacy-acl 接管（report.json: status=installed, enabled=true）→ 按早期宿主处理`；temp 仍只清自己的根（`ownOnly`） |
+| ③ 启动清扫 | `lib/index.js` `startupSweep()`：`if (!caps.sweep) { summary.skipped = ...; return summary; }` | **整块跳过**（不擦别人的根、不补擦台账 pending、不删别人的 temp），日志打出判定依据 |
+
+**判定依据进报告与台账**（便于将来诊断）：
+
+- `hostCaps()` 新增 `source`（`"legacy-acl-plugin"` / `"host-version"`）、`tier`（`"legacy"` / `"trio"`）、`legacyAcl:{detected,present,status,enabled,path,error}`；`trioHost` 保持原义（宿主版本本身是否 ≥ `0.1.7-alpha.1`，事实陈述）。
+- **自检报告**：顺手修掉 `collect()` 里一个存在已久的重复键 —— 原来 `report` 字面量里有两个 `host`，后一个（`{version,home,platform,node,webUrl,pid}`）覆盖了前一个 `hostCaps()`，**宿主能力其实一直没进报告**。现在改成 `Object.assign({}, hostCaps(), {…宿主信息})`，报告的 `host` 里既有 `source`/`tier`/`legacyAcl`，也有原来的 `version`/`home`/…；客户端报告首行的悬停提示同步加上「分流依据」。
+- **台账**：`eraseRoots()` 的擦除条目与 `sweepTempRoots()` 的 `temp-*` 条目都加 `host: hostTag()`（`{version,tier,source,legacyStatus,legacyEnabled,legacyPresent}`）；启动清扫跳过时 `summary.host` 也带同一份摘要（进实例日志）。
+- **契约版本**：`PROBE_VERSION` / `PROBE_MIN` **9 → 10**（报告字段 + 判定语义都变了）。
+
+**离线自检新增用例（`.smoke/probe-offline.mjs` 的 F 段，5 条）**——F 段伪造 `process.argv`（`versions/0.1.7-rc.2`）与 `DSH_HOME`（`.smoke/fakehome/caps-home`），跑完恢复并删除：
+
+```
+F 版本 = "0.1.7-rc.2" · report = <…>\.smoke\fakehome\caps-home\sandbox-legacy-acl\report.json
+PASS F(a) legacy-acl 接管 → 只有关闭这一档（sweep=false / tier=legacy / source=legacy-acl-plugin）  · {"sweep":false,"tier":"legacy","source":"legacy-acl-plugin","trioHost":true,"status":"installed","enabled":true}
+PASS F(b) report.json 不存在 → 回原逻辑（按宿主版本判：sweep=true / source=host-version）  · {"sweep":true,"tier":"trio","source":"host-version","present":false,"error":null}
+PASS F(c) report.json 损坏 → 保守回原逻辑且不抛错  · {"threw":null,"sweep":true,"source":"host-version","error":"report.json 解析失败: Unexpected end of JSON input"}
+PASS F(c2) report.json 为空文件 → 保守回原逻辑且不抛错  · {"threw":null,"sweep":true,"error":"report.json 解析失败: Unexpected end of JSON input"}
+PASS F(d) 只差一个字段 → 也回原逻辑（判据严格等价于 status=installed ∧ enabled=true）  · {"d1":[true,"installed",false],"d2":[true,"uninstalled",true]}
+```
+
+其余三套同轮全绿：`node --check` 两半 `exit=0`；`risks-test` **ALL OK**（25 例）；`labels-test` **LABELS OK**（zh=65 / en=65，新键 `hostLegacyAcl` 中英齐全）；`boot-test` **DIALOG OK + BOOT OK**。
+
+**同轮的基线对照（重要：自检里的 3 条 FAIL 与本改动无关）**：`probe-offline` 的 B 段（跨 home 租约）依赖「本机没有别的活实例租约」，本机此刻有（A 段报 `A peer 租约数 = 1`，pid 25496），于是它报 3 条 FAIL：
+`FAIL B 认出默认 home 里的存活租约` / `FAIL B 合并为确认共享的实例条目` / `FAIL B 进程死后租约作废、登记表仍算数`。
+为把它钉死，把 `HEAD`（v9 版 `lib/index.js`/`lib/client.js`/`.smoke/*.mjs`）导出到 `.sandbox/<本次会话>\baseline\` 后**在同一环境同一时刻重跑**，结果**同样 3 条 FAILURES** —— 基线复现 ⇒ 环境因素，不是回归。`readPeerLeases()` 本次未改动。
+（输出存证：`.sandbox/dsh-sandbox-sweep-legacy-acl-20260930/` 下的 `selfcheck-a.txt`、`selfcheck-b.txt`、`baseline-check.txt`。）
+
+**真实 home 验证（不是伪造文件，直接读本机三份 home）**：把三份 home 的真实路径与对应版本喂给 `hostCaps()`（一次性脚本 `.sandbox/<本次会话>/real-home-check.mjs`，只在沙箱内）：
+
+```
+home=0.1.7-rc.2  version="0.1.7-rc.2"  tier=legacy  sweep=false  source=legacy-acl-plugin  legacyAcl={"detected":true,"present":true,"status":"installed","enabled":true,"error":null}
+home=0.1.5-rc.3  version="0.1.5-rc.3"  tier=legacy  sweep=false  source=host-version       legacyAcl={"detected":false,"present":false,"status":null,"enabled":null,"error":null}
+home=0.1.7-rc.1  version="0.1.7-rc.1"  tier=trio    sweep=true   source=host-version       legacyAcl={"detected":false,"present":false,"status":null,"enabled":null,"error":null}
+```
+
+三行恰好把三种情形全覆盖：**rc2 被 legacy-acl 接管 → 按早期宿主处理（本次要修的误报场景）**；rc3 本来就早 → 原逻辑（只有关闭）；rc1 没有任何接管痕迹 → **仍按"会写三件套"处理，未被误伤**。第二条与第三条也证明「保守回退」这条路真的会回退到版本判定。
+
+**红线**：本次**完全没有碰擦除路径**——`eraseRoots()` 的两条 `icacls` 动作、`removeDeny` / `resetIntegrity`、`keptAce` 语义与能力 ACE 保留口径**一字未改**；legacy-acl 接管时反而**连 `icacls` 都不调用**。
+
+**仍未验证（明确列出）**：
+1. **未重启实例做端到端实测**（按项目规矩由作者重启）：界面按钮消失、关闭链跳过擦除、启动清扫跳过，都只过了离线判定层。
+2. `otherInstances[]` 的逐实例风险标记仍按**对方宿主版本**判（无法读到对方 home 的 legacy-acl 报告）—— rc2 实例在报告里仍会显示为"三件套风险"。属已知残留，未在本次改动范围内。
+3. 仅在**读**这一处依赖 legacy-acl 插件的落盘格式；它若改字段名（`status`/`enabled`），本判定会**静默回退**到按宿主版本判（回到误报），不会报错——这是有意的保守取舍。
+
 ## 仍未做（明确清单）
 
 - 浅色 / 深色两套主题下按钮与弹窗对比度逐一核对；插件"禁用 / 回滚"实测；测试矩阵 T3（常驻终端）、T4（作业 + 定时提醒）、T7（大工作区耗时）、T12（并发点击）留待真实场景观察。另：`0.1.5-rc.3` 无 `terminals` 服务，T3（常驻终端）在该宿主上不适用（M17）。
